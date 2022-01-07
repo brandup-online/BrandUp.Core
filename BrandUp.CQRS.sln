@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31613.86
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BrandUp.CQRS", "src\BrandUp.CQRS\BrandUp.CQRS.csproj", "{1FB64889-A227-44CC-B92C-913BFEB46A86}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{24A2A7B3-24AF-424A-B91F-3C9FC466C78E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1FB64889-A227-44CC-B92C-913BFEB46A86}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1FB64889-A227-44CC-B92C-913BFEB46A86}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1FB64889-A227-44CC-B92C-913BFEB46A86}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1FB64889-A227-44CC-B92C-913BFEB46A86}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1FB64889-A227-44CC-B92C-913BFEB46A86} = {24A2A7B3-24AF-424A-B91F-3C9FC466C78E}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2E5DC8FE-4A72-4A41-A46C-A49E07F08FDD}
+	EndGlobalSection
+EndGlobal
