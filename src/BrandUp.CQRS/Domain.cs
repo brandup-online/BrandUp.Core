@@ -20,6 +20,9 @@ namespace BrandUp.CQRS
 
         public Task<TResult> SendAsync<TResult>(ICommand<TResult> command, CancellationToken cancelationToken = default)
         {
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
+
             throw new System.NotImplementedException();
         }
     }
