@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace BrandUp.CQRS.Example.Items
+namespace BrandUp.Example.Items
 {
     public class User
     {

@@ -1,12 +1,13 @@
-﻿using System.Threading;
+﻿using BrandUp.Commands;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace BrandUp.CQRS
+namespace BrandUp
 {
     public interface IDomain
     {
-        Task NotoficationAsync(INotification notofication, CancellationToken cancelationToken = default);
+        Task<IResult> SendAsync(ICommand command, CancellationToken cancelationToken = default);
 
-        Task<TResult> SendAsync<TResult>(ICommand<TResult> command, CancellationToken cancelationToken = default);
+        Task<IResult<TResult>> SendAsync<TResult>(ICommand<TResult> command, CancellationToken cancelationToken = default);
     }
 }

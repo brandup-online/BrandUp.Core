@@ -1,22 +1,19 @@
-﻿using BrandUp.CQRS.Builder;
+﻿using BrandUp.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 
-namespace BrandUp.CQRS
+namespace BrandUp
 {
     public static class IServiceCollectionExtensions
     {
-        public static IServiceCollection AddCQRS(this IServiceCollection services, Action<CQRSBuilder> buildAction)
+        public static IDomainBuilder AddCQRS(this IServiceCollection services, Action<DomainOptions> buildAction)
         {
-            var builder = new CQRSBuilder(services);
+            var builder = new DomainBuilder(services);
+            var options = new DomainOptions();
 
-            buildAction(builder);
+            services.Configure(buildAction);
 
-            builder.Build();
-
-            services.AddScoped<IDomain, Domain>();
-
-            return services;
+            return builder;
         }
     }
 }

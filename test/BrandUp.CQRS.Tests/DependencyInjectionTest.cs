@@ -1,12 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
-namespace BrandUp.CQRS
+namespace BrandUp
 {
     public class DependencyInjectionTest
     {
         [Fact]
-        public async void Test1()
+        public void GetService_Check()
         {
             var serviceCollection = new ServiceCollection();
 
@@ -18,9 +18,9 @@ namespace BrandUp.CQRS
             var serviceProvider = serviceCollection.BuildServiceProvider();
             using var scope = serviceProvider.CreateAsyncScope();
 
-            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var domain = scope.ServiceProvider.GetService<IDomain>();
 
-            var joinUserResult = await domain.SendAsync(new Example.Commands.JoinUserCommand());
+            Assert.NotNull(domain);
         }
     }
 }

@@ -1,7 +1,9 @@
-﻿using System.Threading;
+﻿using BrandUp.Commands;
+using System.ComponentModel.DataAnnotations;
+using System.Threading;
 using System.Threading.Tasks;
 
-namespace BrandUp.CQRS.Example.Commands
+namespace BrandUp.Example.Commands
 {
     public class JoinUserCommandHandler : ICommandHandler<JoinUserCommand, JoinUserResult>
     {
@@ -22,6 +24,7 @@ namespace BrandUp.CQRS.Example.Commands
 
     public class JoinUserCommand : ICommand<JoinUserResult>
     {
+        [Required]
         public string Phone { get; set; }
     }
 

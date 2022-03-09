@@ -6,7 +6,7 @@
 
     <IsPackable>false</IsPackable>
 
-    <RootNamespace>BrandUp.CQRS</RootNamespace>
+    <RootNamespace>BrandUp.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\BrandUp.CQRS\BrandUp.CQRS.csproj" />
+    <ProjectReference Include="..\..\src\BrandUp.CQRS\BrandUp.Core.csproj" />
   </ItemGroup>
 
 </Project>
