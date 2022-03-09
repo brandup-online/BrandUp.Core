@@ -5,7 +5,7 @@ namespace BrandUp
 {
     public static class ResultExtensions
     {
-        public static IResult<TData> AsObjectiveErrors<TData>(this IResult result)
+        public static Result<TData> AsObjectiveErrors<TData>(this Result result)
         {
             if (result.IsSuccess)
                 throw new ArgumentException("Result required is errors.");

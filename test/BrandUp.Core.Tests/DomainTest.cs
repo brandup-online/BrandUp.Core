@@ -1,4 +1,3 @@
-using BrandUp;
 using BrandUp.Commands.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -14,10 +13,10 @@ namespace BrandUp.Tests
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(builder =>
-            {
-                builder.AddCommand<Example.Commands.VisitUserCommandHandler>();
-            })
+            serviceCollection.AddCQRS(options =>
+                {
+                    options.AddCommand<Example.Commands.VisitUserCommandHandler>();
+                })
                 .AddValidator<ComponentModelCommandValidator>();
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
@@ -39,9 +38,9 @@ namespace BrandUp.Tests
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(builder =>
+            serviceCollection.AddCQRS(options =>
                 {
-                    builder.AddCommand<Example.Commands.JoinUserCommandHandler>();
+                    options.AddCommand<Example.Commands.JoinUserCommandHandler>();
                 })
                 .AddValidator<ComponentModelCommandValidator>();
 
@@ -66,9 +65,9 @@ namespace BrandUp.Tests
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(builder =>
+            serviceCollection.AddCQRS(options =>
             {
-                builder.AddCommand<Example.Commands.JoinUserCommandHandler>();
+                options.AddCommand<Example.Commands.JoinUserCommandHandler>();
             })
                 .AddValidator<ComponentModelCommandValidator>();
 

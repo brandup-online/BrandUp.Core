@@ -6,8 +6,8 @@ namespace BrandUp
 {
     public interface IDomain
     {
-        Task<IResult> SendAsync(ICommand command, CancellationToken cancelationToken = default);
+        Task<Result> SendAsync(ICommand command, CancellationToken cancelationToken = default);
 
-        Task<IResult<TResult>> SendAsync<TResult>(ICommand<TResult> command, CancellationToken cancelationToken = default);
+        Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancelationToken = default);
     }
 }

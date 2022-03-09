@@ -22,7 +22,7 @@ namespace BrandUp
 
         #region IDomain members
 
-        public async Task<IResult> SendAsync(ICommand command, CancellationToken cancelationToken = default)
+        public async Task<Result> SendAsync(ICommand command, CancellationToken cancelationToken = default)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
@@ -46,23 +46,23 @@ namespace BrandUp
             return Result.Success();
         }
 
-        public async Task<IResult<TResult>> SendAsync<TResult>(ICommand<TResult> command, CancellationToken cancelationToken = default)
+        public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancelationToken = default)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (!options.TryGetHandlerWithResultResult<TResult>(out CommandMetadata commandMetadata))
+            if (!options.TryGetHandlerWithResultResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException();
 
             using var scope = serviceProvider.CreateScope();
 
             var validationResult = ValidateCommand(command, scope.ServiceProvider);
             if (!validationResult.IsSuccess)
-                return validationResult.AsObjectiveErrors<TResult>();
+                return validationResult.AsObjectiveErrors<TResultData>();
 
             var handlerObject = CreateHandler(commandMetadata, scope.ServiceProvider);
 
-            var handlerTask = (Task<TResult>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
+            var handlerTask = (Task<TResultData>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
 
             var result = await handlerTask;
 
@@ -71,7 +71,7 @@ namespace BrandUp
 
         #endregion
 
-        private static IResult ValidateCommand(ICommand command, IServiceProvider serviceProvider)
+        private static Result ValidateCommand(ICommand command, IServiceProvider serviceProvider)
         {
             var commandValidator = serviceProvider.GetService<ICommandValidator>();
             if (commandValidator != null)

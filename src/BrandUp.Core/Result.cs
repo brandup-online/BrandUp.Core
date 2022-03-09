@@ -5,27 +5,12 @@ using System.Linq;
 
 namespace BrandUp
 {
-    public interface IResult
-    {
-        bool IsSuccess { get; }
-        IReadOnlyCollection<IError> Errors { get; }
-    }
-
-    public interface IResult<TData> : IResult
-    {
-        TData Data { get; }
-    }
-
-    public class Result : IResult
+    public class Result
     {
         readonly IReadOnlyCollection<IError> errors;
 
-        #region IResult members
-
         public bool IsSuccess => errors == null;
         public IReadOnlyCollection<IError> Errors => errors;
-
-        #endregion
 
         internal Result() { }
         internal Result(IList<IError> errors)
@@ -36,6 +21,8 @@ namespace BrandUp
             this.errors = new ReadOnlyCollection<IError>(errors);
         }
 
+        #region Success
+
         public static Result Success()
         {
             return new Result();
@@ -44,6 +31,10 @@ namespace BrandUp
         {
             return new Result<TData>(obj);
         }
+
+        #endregion
+
+        #region Error
 
         public static Result Error(IEnumerable<IError> errors)
         {
@@ -63,7 +54,6 @@ namespace BrandUp
 
             return new Result<TData>(new List<IError>(errors));
         }
-
         public static Result Error(string code, string message)
         {
             return new Result(new List<IError> { new Error(code, message) });
@@ -72,9 +62,25 @@ namespace BrandUp
         {
             return new Result<TData>(new List<IError> { new Error(code, message) });
         }
+
+        #endregion
+
+        public static implicit operator bool(Result d) => d.IsSuccess;
+
+        #region Object members
+
+        public override string ToString()
+        {
+            if (IsSuccess)
+                return "Success";
+            else
+                return $"Errors: {errors.Count}";
+        }
+
+        #endregion
     }
 
-    public class Result<TData> : Result, IResult<TData>
+    public class Result<TData> : Result
     {
         public TData Data { get; }
 

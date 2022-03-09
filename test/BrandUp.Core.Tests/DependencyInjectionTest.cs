@@ -10,9 +10,9 @@ namespace BrandUp
         {
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(builder =>
+            serviceCollection.AddCQRS(options =>
             {
-                builder.AddCommand<Example.Commands.JoinUserCommandHandler>();
+                options.AddCommand<Example.Commands.JoinUserCommandHandler>();
             });
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
