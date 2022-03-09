@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\BrandUp.CQRS\BrandUp.Core.csproj" />
+    <ProjectReference Include="..\..\src\BrandUp.Core\BrandUp.Core.csproj" />
   </ItemGroup>
 
 </Project>
