@@ -15,7 +15,7 @@ namespace BrandUp
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(options =>
+            serviceCollection.AddDomain(options =>
             {
                 options.AddQuery<UserByPhoneQueryHandler>();
             })
@@ -43,7 +43,7 @@ namespace BrandUp
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(options =>
+            serviceCollection.AddDomain(options =>
                 {
                     options.AddCommand<Example.Commands.VisitUserCommandHandler>();
                 })
@@ -68,7 +68,7 @@ namespace BrandUp
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(options =>
+            serviceCollection.AddDomain(options =>
                 {
                     options.AddCommand<Example.Commands.JoinUserCommandHandler>();
                 })
@@ -95,7 +95,7 @@ namespace BrandUp
 
             var serviceCollection = new ServiceCollection();
 
-            serviceCollection.AddCQRS(options =>
+            serviceCollection.AddDomain(options =>
             {
                 options.AddCommand<Example.Commands.JoinUserCommandHandler>();
             })
