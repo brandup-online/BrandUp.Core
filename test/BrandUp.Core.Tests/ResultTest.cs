@@ -1,6 +1,6 @@
 ﻿using Xunit;
 
-namespace BrandUp.Tests
+namespace BrandUp
 {
     public class ResultTest
     {

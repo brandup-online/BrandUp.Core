@@ -5,6 +5,48 @@ Base framework for .NET development.
 * Universal result structure
 * CQRS infrastructure
 
+## Qieries
+
+```
+
+public class UserByPhoneQuery : IQuery<User>
+{
+    [Required]
+    public string Phone { get; set; }
+}
+
+public class UserByPhoneQueryHandler : IQueryHandler<UserByPhoneQuery, User>
+{
+    public Task<IList<User>> HandleAsync(UserByPhoneQuery query, CancellationToken cancelationToken = default)
+    {
+        var result = new List<User>
+        {
+            new User
+            {
+                Id = System.Guid.NewGuid(),
+                Phone = query.Phone
+            }
+        };
+
+        return Task.FromResult<IList<User>>(result);
+    }
+}
+
+serviceCollection.AddCQRS(options =>
+    {
+        options.AddQuery<UserByPhoneQuery>();
+    })
+    .AddValidator<ComponentModelValidator>();
+
+var userByPhoneResult = await domain.ReadAsync(new UserByPhoneQuery { Phone = "89232229022" });
+
+// userByPhoneResult.IsSuccess
+// userByPhoneResult.Errors
+// userByPhoneResult.Data
+// userByPhoneResult.Data[0]
+
+```
+
 ## Commands
 
 ```
@@ -54,7 +96,7 @@ serviceCollection.AddCQRS(options =>
         options.AddCommand<VisitUserCommandHandler>();
         options.AddCommand<ChangeUserPhoneCommandHandler>();
     })
-    .AddValidator<ComponentModelCommandValidator>();
+    .AddValidator<ComponentModelValidator>();
 
 var domain = serviceProvider.GetRequiredService<IDomain>();
 var signUpResult = await domain.SendAsync(new Example.Commands.SignUpCommandHandler { Phone = "+79231145449" });

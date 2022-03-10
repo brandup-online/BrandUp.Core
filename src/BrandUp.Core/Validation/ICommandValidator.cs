@@ -1,11 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace BrandUp.Commands.Validation
+namespace BrandUp.Validation
 {
-    public interface ICommandValidator
+    public interface IValidator
     {
-        bool Validate(ICommand command, IServiceProvider serviceProvider, IList<CommandValidationError> errors);
+        bool Validate(object obj, IServiceProvider serviceProvider, IList<CommandValidationError> errors);
     }
 
     public class CommandValidationError : Error

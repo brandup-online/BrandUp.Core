@@ -1,4 +1,5 @@
 ﻿using BrandUp.Commands;
+using BrandUp.Queries;
 using System;
 using System.Collections.Generic;
 
@@ -6,12 +7,36 @@ namespace BrandUp
 {
     public class DomainOptions
     {
-        readonly static Type HandlerWithResultDefinitionType = typeof(ICommandHandler<,>);
-        readonly static Type HandlerNotResultDefinitionType = typeof(ICommandHandler<>);
+        readonly static Type QueryHandlerDefinitionType = typeof(IQueryHandler<,>);
+        readonly static Type CommandHandlerWithResultDefinitionType = typeof(ICommandHandler<,>);
+        readonly static Type CommandHandlerNotResultDefinitionType = typeof(ICommandHandler<>);
 
+        private readonly Dictionary<Type, QueryMetadata> queries = new();
         private readonly Dictionary<Type, CommandMetadata> commandsWithResults = new();
         private readonly Dictionary<Type, CommandMetadata> commandsNotResults = new();
 
+        public DomainOptions AddQuery<THandler>()
+        {
+            var handlerType = typeof(THandler);
+
+            foreach (var iType in handlerType.GetInterfaces())
+            {
+                if (!iType.IsGenericType)
+                    continue;
+
+                if (QueryHandlerDefinitionType == iType.GetGenericTypeDefinition())
+                {
+                    var queryMetadata = QueryMetadata.Build(handlerType, iType);
+
+                    if (!queries.TryAdd(queryMetadata.QueryType, queryMetadata))
+                        throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" already exist.");
+
+                    break;
+                }
+            }
+
+            return this;
+        }
         public DomainOptions AddCommand<THandler>()
         {
             var handlerType = typeof(THandler);
@@ -21,24 +46,21 @@ namespace BrandUp
                 if (!iType.IsGenericType)
                     continue;
 
-                if (HandlerWithResultDefinitionType == iType.GetGenericTypeDefinition())
+                if (CommandHandlerWithResultDefinitionType == iType.GetGenericTypeDefinition())
                 {
                     var commandMedata = CommandMetadata.Build(handlerType, iType);
 
-                    if (commandsWithResults.ContainsKey(commandMedata.ResultType))
+                    if (!commandsWithResults.TryAdd(commandMedata.ResultType, commandMedata))
                         throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{commandMedata.ResultType.AssemblyQualifiedName}\".");
 
-                    commandsWithResults.Add(commandMedata.ResultType, commandMedata);
                     break;
                 }
-                else if (HandlerNotResultDefinitionType == iType.GetGenericTypeDefinition())
+                else if (CommandHandlerNotResultDefinitionType == iType.GetGenericTypeDefinition())
                 {
                     var commandMedata = CommandMetadata.Build(handlerType, iType);
 
-                    if (commandsNotResults.ContainsKey(commandMedata.CommandType))
+                    if (!commandsNotResults.TryAdd(commandMedata.CommandType, commandMedata))
                         throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandMedata.CommandType.AssemblyQualifiedName}\".");
-
-                    commandsNotResults.Add(commandMedata.CommandType, commandMedata);
                     break;
                 }
             }
@@ -46,7 +68,11 @@ namespace BrandUp
             return this;
         }
 
-        public bool TryGetHandlerWithResultResult<TResult>(out CommandMetadata commandMetadata)
+        public bool TryGetQueryHandler(Type queryType, out QueryMetadata queryMetadata)
+        {
+            return queries.TryGetValue(queryType, out queryMetadata);
+        }
+        public bool TryGetHandlerWithResult<TResult>(out CommandMetadata commandMetadata)
         {
             return commandsWithResults.TryGetValue(typeof(TResult), out commandMetadata);
         }

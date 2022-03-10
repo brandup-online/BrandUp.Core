@@ -17,6 +17,8 @@ namespace BrandUp
         {
             if (errors == null)
                 throw new ArgumentNullException(nameof(errors));
+            if (errors.Count == 0)
+                throw new ArgumentException("Errors required.", nameof(errors));
 
             this.errors = new ReadOnlyCollection<IError>(errors);
         }

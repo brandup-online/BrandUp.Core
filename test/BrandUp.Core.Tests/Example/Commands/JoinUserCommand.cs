@@ -7,7 +7,7 @@ namespace BrandUp.Example.Commands
 {
     public class JoinUserCommandHandler : ICommandHandler<JoinUserCommand, JoinUserResult>
     {
-        public Task<JoinUserResult> HandleAsync(JoinUserCommand command, CancellationToken cancelationToken = default)
+        public Task<Result<JoinUserResult>> HandleAsync(JoinUserCommand command, CancellationToken cancelationToken = default)
         {
             var result = new JoinUserResult
             {
@@ -18,7 +18,7 @@ namespace BrandUp.Example.Commands
                 }
             };
 
-            return Task.FromResult(result);
+            return Task.FromResult(Result.Success(result));
         }
     }
 

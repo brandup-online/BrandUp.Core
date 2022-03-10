@@ -1,11 +1,41 @@
-using BrandUp.Commands.Validation;
+using BrandUp.Example.Queries;
+using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
+using System.Linq;
 using Xunit;
 
-namespace BrandUp.Tests
+namespace BrandUp
 {
     public class DomainTest
     {
+        [Fact]
+        public async void ReadAsync()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddCQRS(options =>
+            {
+                options.AddQuery<UserByPhoneQueryHandler>();
+            })
+                .AddValidator<ComponentModelValidator>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var userByPhoneResult = await domain.ReadAsync(new UserByPhoneQuery { Phone = "89232229022" });
+
+            Assert.True(userByPhoneResult.IsSuccess);
+            Assert.NotNull(userByPhoneResult.Data);
+            Assert.Single(userByPhoneResult.Data);
+            Assert.Equal("89232229022", userByPhoneResult.Data.Single().Phone);
+        }
+
         [Fact]
         public async void SendAsync_NotResult()
         {
@@ -17,7 +47,7 @@ namespace BrandUp.Tests
                 {
                     options.AddCommand<Example.Commands.VisitUserCommandHandler>();
                 })
-                .AddValidator<ComponentModelCommandValidator>();
+                .AddValidator<ComponentModelValidator>();
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
             using var scope = serviceProvider.CreateAsyncScope();
@@ -42,7 +72,7 @@ namespace BrandUp.Tests
                 {
                     options.AddCommand<Example.Commands.JoinUserCommandHandler>();
                 })
-                .AddValidator<ComponentModelCommandValidator>();
+                .AddValidator<ComponentModelValidator>();
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
             using var scope = serviceProvider.CreateAsyncScope();
@@ -69,7 +99,7 @@ namespace BrandUp.Tests
             {
                 options.AddCommand<Example.Commands.JoinUserCommandHandler>();
             })
-                .AddValidator<ComponentModelCommandValidator>();
+                .AddValidator<ComponentModelValidator>();
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
             using var scope = serviceProvider.CreateAsyncScope();

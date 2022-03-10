@@ -1,5 +1,6 @@
 ﻿using BrandUp.Commands;
-using BrandUp.Commands.Validation;
+using BrandUp.Queries;
+using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
@@ -22,6 +23,30 @@ namespace BrandUp
 
         #region IDomain members
 
+        public async Task<Result<IList<TRow>>> ReadAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
+        {
+            if(query==null)
+                throw new ArgumentNullException(nameof(query));
+
+            var queryType = query.GetType();
+            if (!options.TryGetQueryHandler(queryType, out QueryMetadata queryMetadata))
+                throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
+
+            using var scope = serviceProvider.CreateScope();
+
+            var validationResult = ValidateObj(query, scope.ServiceProvider);
+            if (!validationResult.IsSuccess)
+                return validationResult.AsObjectiveErrors<IList<TRow>>();
+
+            var handlerObject = CreateQueryHandler(queryMetadata, scope.ServiceProvider);
+
+            var handlerTask = (Task<IList<TRow>>)queryMetadata.HandleMethod.Invoke(handlerObject, new object[] { query, cancellationToken });
+
+            var rows = await handlerTask;
+
+            return Result.Success(rows);
+        }
+
         public async Task<Result> SendAsync(ICommand command, CancellationToken cancelationToken = default)
         {
             if (command == null)
@@ -33,17 +58,15 @@ namespace BrandUp
 
             using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateCommand(command, scope.ServiceProvider);
+            var validationResult = ValidateObj(command, scope.ServiceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult;
 
-            var handlerObject = CreateHandler(commandMetadata, scope.ServiceProvider);
+            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
 
-            var handlerTask = (Task)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
+            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
 
-            await handlerTask;
-
-            return Result.Success();
+            return await handlerTask;
         }
 
         public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancelationToken = default)
@@ -51,39 +74,47 @@ namespace BrandUp
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
 
-            if (!options.TryGetHandlerWithResultResult<TResultData>(out CommandMetadata commandMetadata))
+            if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException();
 
             using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateCommand(command, scope.ServiceProvider);
+            var validationResult = ValidateObj(command, scope.ServiceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TResultData>();
 
-            var handlerObject = CreateHandler(commandMetadata, scope.ServiceProvider);
+            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
 
-            var handlerTask = (Task<TResultData>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
+            var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
 
-            var result = await handlerTask;
-
-            return Result.Success(result);
+            return await handlerTask;
         }
 
         #endregion
 
-        private static Result ValidateCommand(ICommand command, IServiceProvider serviceProvider)
+        private static Result ValidateObj(object obj, IServiceProvider serviceProvider)
         {
-            var commandValidator = serviceProvider.GetService<ICommandValidator>();
+            var commandValidator = serviceProvider.GetService<IValidator>();
             if (commandValidator != null)
             {
                 var errors = new List<CommandValidationError>();
-                if (!commandValidator.Validate(command, serviceProvider, errors))
+                if (!commandValidator.Validate(obj, serviceProvider, errors))
                     return Result.Error(errors);
             }
             return Result.Success();
         }
+        private static object CreateQueryHandler(QueryMetadata queryMetadata, IServiceProvider serviceProvider)
+        {
+            var constructorParams = new List<object>();
+            foreach (var constructorParamType in queryMetadata.ConstructorParamTypes)
+            {
+                var paramValue = serviceProvider.GetRequiredService(constructorParamType);
+                constructorParams.Add(paramValue);
+            }
 
-        private static object CreateHandler(CommandMetadata commandMetadata, IServiceProvider serviceProvider)
+            return queryMetadata.Constructor.Invoke(constructorParams.ToArray());
+        }
+        private static object CreateCommandHandler(CommandMetadata commandMetadata, IServiceProvider serviceProvider)
         {
             var constructorParams = new List<object>();
             foreach (var constructorParamType in commandMetadata.ConstructorParamTypes)

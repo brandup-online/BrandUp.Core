@@ -6,7 +6,7 @@
 
     <IsPackable>false</IsPackable>
 
-    <RootNamespace>BrandUp.Tests</RootNamespace>
+    <RootNamespace>BrandUp</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

@@ -7,9 +7,9 @@ namespace BrandUp.Example.Commands
 {
     public class VisitUserCommandHandler : ICommandHandler<VisitUserCommand>
     {
-        public Task HandleAsync(VisitUserCommand command, CancellationToken cancelationToken = default)
+        public Task<Result> HandleAsync(VisitUserCommand command, CancellationToken cancelationToken = default)
         {
-            return Task.CompletedTask;
+            return Task.FromResult(Result.Success());
         }
     }
 
