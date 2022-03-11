@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -54,7 +55,7 @@ namespace BrandUp
 
             var commandType = command.GetType();
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
-                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\"");
+                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
             using var scope = serviceProvider.CreateScope();
 
@@ -75,7 +76,7 @@ namespace BrandUp
                 throw new ArgumentNullException(nameof(command));
 
             if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
-                throw new InvalidOperationException();
+                throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
 
             using var scope = serviceProvider.CreateScope();
 

@@ -31,11 +31,11 @@ namespace BrandUp
                     if (!queries.TryAdd(queryMetadata.QueryType, queryMetadata))
                         throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" already exist.");
 
-                    break;
+                    return this;
                 }
             }
 
-            return this;
+            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {QueryHandlerDefinitionType.FullName}.");
         }
         public DomainOptions AddCommand<THandler>()
         {
@@ -53,7 +53,7 @@ namespace BrandUp
                     if (!commandsWithResults.TryAdd(commandMedata.ResultType, commandMedata))
                         throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{commandMedata.ResultType.AssemblyQualifiedName}\".");
 
-                    break;
+                    return this;
                 }
                 else if (CommandHandlerNotResultDefinitionType == iType.GetGenericTypeDefinition())
                 {
@@ -61,11 +61,12 @@ namespace BrandUp
 
                     if (!commandsNotResults.TryAdd(commandMedata.CommandType, commandMedata))
                         throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandMedata.CommandType.AssemblyQualifiedName}\".");
-                    break;
+
+                    return this;
                 }
             }
 
-            return this;
+            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {CommandHandlerWithResultDefinitionType.FullName}.");
         }
 
         public bool TryGetQueryHandler(Type queryType, out QueryMetadata queryMetadata)
