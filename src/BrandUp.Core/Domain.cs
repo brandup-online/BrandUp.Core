@@ -24,7 +24,7 @@ namespace BrandUp
 
         #region IDomain members
 
-        public async Task<Result<IList<TRow>>> ReadAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
+        public async Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
         {
             if(query==null)
                 throw new ArgumentNullException(nameof(query));
@@ -69,7 +69,6 @@ namespace BrandUp
 
             return await handlerTask;
         }
-
         public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancelationToken = default)
         {
             if (command == null)
@@ -87,6 +86,52 @@ namespace BrandUp
             var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
 
             var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
+
+            return await handlerTask;
+        }
+
+        public async Task<Result> SendItemAsync<TItem>(TItem item, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+        {
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
+
+            var commandType = command.GetType();
+            if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
+                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+
+            using var scope = serviceProvider.CreateScope();
+
+            var validationResult = ValidateObj(command, scope.ServiceProvider);
+            if (!validationResult.IsSuccess)
+                return validationResult;
+
+            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
+
+            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancelationToken });
+
+            return await handlerTask;
+        }
+        public async Task<Result<TResultData>> SendItemAsync<TItem, TResultData>(TItem item, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+        {
+            if (item == null)
+                throw new ArgumentNullException(nameof(item));
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
+
+            if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
+                throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
+
+            using var scope = serviceProvider.CreateScope();
+
+            var validationResult = ValidateObj(command, scope.ServiceProvider);
+            if (!validationResult.IsSuccess)
+                return validationResult.AsObjectiveErrors<TResultData>();
+
+            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
+
+            var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancelationToken });
 
             return await handlerTask;
         }

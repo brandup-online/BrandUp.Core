@@ -7,9 +7,11 @@ namespace BrandUp
 {
     public class DomainOptions
     {
-        readonly static Type QueryHandlerDefinitionType = typeof(IQueryHandler<,>);
-        readonly static Type CommandHandlerWithResultDefinitionType = typeof(ICommandHandler<,>);
-        readonly static Type CommandHandlerNotResultDefinitionType = typeof(ICommandHandler<>);
+        internal readonly static Type QueryHandlerDefinitionType = typeof(IQueryHandler<,>);
+        internal readonly static Type CommandHandlerWithResultDefinitionType = typeof(ICommandHandler<,>);
+        internal readonly static Type CommandHandlerNotResultDefinitionType = typeof(ICommandHandler<>);
+        internal readonly static Type ItemCommandHandlerWithResultDefinitionType = typeof(IItemCommandHandler<,,>);
+        internal readonly static Type ItemCommandHandlerNotResultDefinitionType = typeof(IItemCommandHandler<,>);
 
         private readonly Dictionary<Type, QueryMetadata> queries = new();
         private readonly Dictionary<Type, CommandMetadata> commandsWithResults = new();
@@ -41,29 +43,51 @@ namespace BrandUp
         {
             var handlerType = typeof(THandler);
 
-            foreach (var iType in handlerType.GetInterfaces())
+            foreach (var handlerInterface in handlerType.GetInterfaces())
             {
-                if (!iType.IsGenericType)
+                if (!handlerInterface.IsGenericType)
                     continue;
 
-                if (CommandHandlerWithResultDefinitionType == iType.GetGenericTypeDefinition())
+                var genericTypeDefinition = handlerInterface.GetGenericTypeDefinition();
+
+                Type itemType;
+                Type commandType;
+                Type resultType;
+                if (genericTypeDefinition == CommandHandlerWithResultDefinitionType)
                 {
-                    var commandMedata = CommandMetadata.Build(handlerType, iType);
-
-                    if (!commandsWithResults.TryAdd(commandMedata.ResultType, commandMedata))
-                        throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{commandMedata.ResultType.AssemblyQualifiedName}\".");
-
-                    return this;
+                    itemType = null;
+                    commandType = handlerInterface.GenericTypeArguments[0];
+                    resultType = handlerInterface.GenericTypeArguments[1];
                 }
-                else if (CommandHandlerNotResultDefinitionType == iType.GetGenericTypeDefinition())
+                else if (genericTypeDefinition == ItemCommandHandlerWithResultDefinitionType)
                 {
-                    var commandMedata = CommandMetadata.Build(handlerType, iType);
-
-                    if (!commandsNotResults.TryAdd(commandMedata.CommandType, commandMedata))
-                        throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandMedata.CommandType.AssemblyQualifiedName}\".");
-
-                    return this;
+                    itemType = handlerInterface.GenericTypeArguments[0];
+                    commandType = handlerInterface.GenericTypeArguments[1];
+                    resultType = handlerInterface.GenericTypeArguments[2];
                 }
+                else if (genericTypeDefinition == CommandHandlerNotResultDefinitionType)
+                {
+                    itemType = null;
+                    commandType = handlerInterface.GenericTypeArguments[0];
+                    resultType = null;
+                }
+                else if (genericTypeDefinition == ItemCommandHandlerNotResultDefinitionType)
+                {
+                    itemType = handlerInterface.GenericTypeArguments[0];
+                    commandType = handlerInterface.GenericTypeArguments[1];
+                    resultType = null;
+                }
+                else
+                    continue;
+
+                var commandMedata = CommandMetadata.Build(handlerType, handlerInterface, itemType, commandType, resultType);
+
+                if (commandMedata.WithResult && !commandsWithResults.TryAdd(commandMedata.ResultType, commandMedata))
+                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{commandMedata.ResultType.AssemblyQualifiedName}\".");
+                else if (!commandsNotResults.TryAdd(commandMedata.CommandType, commandMedata))
+                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandMedata.CommandType.AssemblyQualifiedName}\".");
+
+                return this;
             }
 
             throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {CommandHandlerWithResultDefinitionType.FullName}.");

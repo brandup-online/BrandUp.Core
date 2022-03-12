@@ -1,3 +1,4 @@
+using BrandUp.Example.Items;
 using BrandUp.Example.Queries;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,7 @@ namespace BrandUp
     public class DomainTest
     {
         [Fact]
-        public async void ReadAsync()
+        public async void QueryAsync()
         {
             #region Prepare
 
@@ -28,7 +29,7 @@ namespace BrandUp
 
             #endregion
 
-            var userByPhoneResult = await domain.ReadAsync(new UserByPhoneQuery { Phone = "89232229022" });
+            var userByPhoneResult = await domain.QueryAsync(new UserByPhoneQuery { Phone = "89232229022" });
 
             Assert.True(userByPhoneResult.IsSuccess);
             Assert.NotNull(userByPhoneResult.Data);
@@ -37,7 +38,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void SendAsync_NotResult()
+        public async void SendItemAsync_NotResult()
         {
             #region Prepare
 
@@ -56,7 +57,9 @@ namespace BrandUp
 
             #endregion
 
-            var joinUserResult = await domain.SendAsync(new Example.Commands.VisitUserCommand { Phone = "+79231145449" });
+            var user = new User { Id = System.Guid.NewGuid(), Phone = "89232229022" };
+
+            var joinUserResult = await domain.SendItemAsync(user, new Example.Commands.VisitUserCommand());
 
             Assert.True(joinUserResult.IsSuccess);
         }

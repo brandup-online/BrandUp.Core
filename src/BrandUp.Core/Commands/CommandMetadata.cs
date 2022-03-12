@@ -14,19 +14,23 @@ namespace BrandUp.Commands
         private MethodInfo handleMethod;
 
         public Type HandlerType { get; private set; }
+        public Type ItemType { get; private set; }
         public Type CommandType { get; private set; }
         public Type ResultType { get; private set; }
         public ConstructorInfo Constructor => constructor;
         public IReadOnlyCollection<Type> ConstructorParamTypes => constructorParamTypes;
         public MethodInfo HandleMethod => handleMethod;
+        public bool IsForItem => ItemType != null;
+        public bool WithResult => ResultType != null;
 
-        internal static CommandMetadata Build(Type handlerType, Type handlerInterface)
+        internal static CommandMetadata Build(Type handlerType, Type handlerInterface, Type itemType, Type commandType, Type resultType)
         {
             var commandMetadata = new CommandMetadata
             {
                 HandlerType = handlerType,
-                CommandType = handlerInterface.GenericTypeArguments[0],
-                ResultType = handlerInterface.GenericTypeArguments.Length > 1 ? handlerInterface.GenericTypeArguments[1] : null
+                ItemType = itemType,
+                CommandType = commandType,
+                ResultType = resultType
             };
 
             var constructors = handlerType.GetConstructors(BindingFlags.Instance | BindingFlags.Public);
@@ -40,7 +44,13 @@ namespace BrandUp.Commands
             var constructorParams = commandMetadata.constructor.GetParameters();
             commandMetadata.constructorParamTypes = new ReadOnlyCollection<Type>(constructorParams.Select(it => it.ParameterType).ToList());
 
-            commandMetadata.handleMethod = handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase, null, new Type[] { commandMetadata.CommandType, typeof(CancellationToken) }, null);
+            Type[] methodParamTypes;
+            if (commandMetadata.IsForItem)
+                methodParamTypes = new Type[] { itemType, commandMetadata.CommandType, typeof(CancellationToken) };
+            else
+                methodParamTypes = new Type[] { commandMetadata.CommandType, typeof(CancellationToken) };
+
+            commandMetadata.handleMethod = handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase, null, methodParamTypes, null);
             if (commandMetadata.handleMethod == null)
                 throw new InvalidOperationException();
 
