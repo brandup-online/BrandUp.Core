@@ -32,7 +32,7 @@ namespace BrandUp
             where TItem : class, IItem<TId>
         {
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
-            return itemProvider.FindByIdASync(itemId, cancellationToken);
+            return itemProvider.FindByIdAsync(itemId, cancellationToken);
         }
 
         public async Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
@@ -111,7 +111,7 @@ namespace BrandUp
 
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
 
-            var item = await itemProvider.FindByIdASync(itemId, cancelationToken);
+            var item = await itemProvider.FindByIdAsync(itemId, cancelationToken);
             if (item == null)
                 return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
 
@@ -127,7 +127,7 @@ namespace BrandUp
 
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
 
-            var item = await itemProvider.FindByIdASync(itemId, cancelationToken);
+            var item = await itemProvider.FindByIdAsync(itemId, cancelationToken);
             if (item == null)
                 return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
 
