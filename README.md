@@ -32,7 +32,7 @@ public class UserByPhoneQueryHandler : IQueryHandler<UserByPhoneQuery, User>
     }
 }
 
-serviceCollection.AddCQRS(options =>
+serviceCollection.AddDomain(options =>
     {
         options.AddQuery<UserByPhoneQuery>();
     })
@@ -90,7 +90,7 @@ public class SignUpResult
     public User User { get; set; }
 }
 
-serviceCollection.AddCQRS(options =>
+serviceCollection.AddDomain(options =>
     {
         options.AddCommand<SignUpCommandHandler>();
         options.AddCommand<VisitUserCommandHandler>();
@@ -104,6 +104,51 @@ var signUpResult = await domain.SendAsync(new Example.Commands.SignUpCommandHand
 // signUpResult.IsSuccess
 // signUpResult.Errors
 // signUpResult.Data
+
+```
+
+## Items
+
+```
+
+public class User : IItem<Guid>
+{
+    public Guid Id { get; set; }
+    public string Phone { get; set; }
+}
+
+public class UserProvider : IItemProvider<Guid, User>
+{
+    public Task<User> FindByIdASync(Guid itemId, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(new User { Id = new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"), Phone = "79232229022" });
+    }
+}
+
+public class VisitUserCommand : IItemCommand<Items.User> { }
+
+public class VisitUserCommandHandler : IItemCommandHandler<Items.User, VisitUserCommand>
+{
+    public Task<Result> HandleAsync(Items.User item, VisitUserCommand command, CancellationToken cancelationToken = default)
+    {
+        return Task.FromResult(Result.Success());
+    }
+}
+
+serviceCollection.AddDomain(options =>
+    {
+        options.AddCommand<Example.Commands.VisitUserCommandHandler>();
+    })
+    .AddItemProvider<UserProvider>();
+
+var domain = serviceProvider.GetRequiredService<IDomain>();
+var item = await domain.FindItem<Guid, User>(new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"));
+
+var userProvider1 = serviceProvider.GetService<UserProvider>();
+var userProvider2 = serviceProvider.GetService<IItemProvider<Guid, User>>();
+
+var result = await domain.FindItemAndSendAsync(new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"), new Example.Commands.VisitUserCommand());
+var result = await domain.SendItemAsync(item, new Example.Commands.VisitUserCommand());
 
 ```
 

@@ -2,6 +2,7 @@ using BrandUp.Example.Items;
 using BrandUp.Example.Queries;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Linq;
 using Xunit;
 
@@ -9,6 +10,50 @@ namespace BrandUp
 {
     public class DomainTest
     {
+        [Fact]
+        public void GetItemProvider()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options => { })
+                .AddItemProvider<UserProvider>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var userProvider = domain.GetItemProvider<UserProvider>();
+
+            Assert.NotNull(userProvider);
+        }
+
+        [Fact]
+        public async void FindItemAsync()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options => { })
+                .AddItemProvider<UserProvider>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var item = await domain.FindItem<Guid, User>(Guid.Empty);
+
+            Assert.NotNull(item);
+        }
+
         [Fact]
         public async void QueryAsync()
         {
@@ -38,6 +83,34 @@ namespace BrandUp
         }
 
         [Fact]
+        public async void FindItemAndSendAsync_NotResult()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+            {
+                options.AddCommand<Example.Commands.VisitUserCommandHandler>();
+            })
+                .AddItemProvider<UserProvider>()
+                .AddValidator<ComponentModelValidator>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
+
+            var joinUserResult = await domain.FindItemAndSendAsync(Guid.Empty, new Example.Commands.VisitUserCommand());
+
+            Assert.True(joinUserResult.IsSuccess);
+        }
+
+        [Fact]
         public async void SendItemAsync_NotResult()
         {
             #region Prepare
@@ -57,7 +130,7 @@ namespace BrandUp
 
             #endregion
 
-            var user = new User { Id = System.Guid.NewGuid(), Phone = "89232229022" };
+            var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
 
             var joinUserResult = await domain.SendItemAsync(user, new Example.Commands.VisitUserCommand());
 

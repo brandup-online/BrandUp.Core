@@ -1,11 +1,11 @@
 ﻿using BrandUp.Commands;
+using BrandUp.Items;
 using BrandUp.Queries;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -24,9 +24,20 @@ namespace BrandUp
 
         #region IDomain members
 
+        public TItemProvider GetItemProvider<TItemProvider>()
+        {
+            return serviceProvider.GetRequiredService<TItemProvider>();
+        }
+        public Task<TItem> FindItem<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
+            where TItem : class, IItem<TId>
+        {
+            var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
+            return itemProvider.FindByIdASync(itemId, cancellationToken);
+        }
+
         public async Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
         {
-            if(query==null)
+            if (query == null)
                 throw new ArgumentNullException(nameof(query));
 
             var queryType = query.GetType();
@@ -90,7 +101,41 @@ namespace BrandUp
             return await handlerTask;
         }
 
-        public async Task<Result> SendItemAsync<TItem>(TItem item, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+        public async Task<Result> FindItemAndSendAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+            where TItem : class, IItem<TId>
+        {
+            if (itemId == null)
+                throw new ArgumentNullException(nameof(itemId));
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
+
+            var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
+
+            var item = await itemProvider.FindByIdASync(itemId, cancelationToken);
+            if (item == null)
+                return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
+
+            return await SendItemAsync(item, command, cancelationToken);
+        }
+        public async Task<Result> FindItemAndSendAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+            where TItem : class, IItem<TId>
+        {
+            if (itemId == null)
+                throw new ArgumentNullException(nameof(itemId));
+            if (command == null)
+                throw new ArgumentNullException(nameof(command));
+
+            var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
+
+            var item = await itemProvider.FindByIdASync(itemId, cancelationToken);
+            if (item == null)
+                return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
+
+            return await SendItemAsync<TId, TItem>(item, command, cancelationToken);
+        }
+
+        public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+            where TItem : class, IItem<TId>
         {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));
@@ -113,7 +158,8 @@ namespace BrandUp
 
             return await handlerTask;
         }
-        public async Task<Result<TResultData>> SendItemAsync<TItem, TResultData>(TItem item, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+            where TItem : class, IItem<TId>
         {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));

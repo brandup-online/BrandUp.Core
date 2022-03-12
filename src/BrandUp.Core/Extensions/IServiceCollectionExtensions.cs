@@ -9,9 +9,13 @@ namespace BrandUp
         public static IDomainBuilder AddDomain(this IServiceCollection services, Action<DomainOptions> buildAction)
         {
             var builder = new DomainBuilder(services);
-            var options = new DomainOptions();
 
             services.Configure(buildAction);
+
+            services.PostConfigureAll<DomainOptions>(options =>
+            {
+                
+            });
 
             return builder;
         }

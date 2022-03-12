@@ -6,7 +6,7 @@ namespace BrandUp
     public class DomainOptionsTest
     {
         [Fact]
-        public void AddQuery()
+        public void AddQuery_Invalid()
         {
             var options = new DomainOptions();
 
@@ -16,7 +16,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public void AddCommand()
+        public void AddCommand_Invalid()
         {
             var options = new DomainOptions();
 
