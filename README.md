@@ -147,7 +147,7 @@ var item = await domain.FindItem<Guid, User>(new Guid("0b1eb946-c07c-406c-a7ba-d
 var userProvider1 = serviceProvider.GetService<UserProvider>();
 var userProvider2 = serviceProvider.GetService<IItemProvider<Guid, User>>();
 
-var result = await domain.FindItemAndSendAsync(new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"), new Example.Commands.VisitUserCommand());
+var result = await domain.SendItemAsync(new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"), new Example.Commands.VisitUserCommand());
 var result = await domain.SendItemAsync(item, new Example.Commands.VisitUserCommand());
 
 ```
