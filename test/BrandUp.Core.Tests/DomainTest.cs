@@ -83,7 +83,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void FindItemAndSendAsync_NotResult()
+        public async void SendItemAsync_ById_NotResult()
         {
             #region Prepare
 
@@ -105,13 +105,13 @@ namespace BrandUp
 
             var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
 
-            var joinUserResult = await domain.FindItemAndSendAsync(Guid.Empty, new Example.Commands.VisitUserCommand());
+            var joinUserResult = await domain.SendItemAsync(Guid.Empty, new Example.Commands.VisitUserCommand());
 
             Assert.True(joinUserResult.IsSuccess);
         }
 
         [Fact]
-        public async void SendItemAsync_NotResult()
+        public async void SendItemAsync_ByItem_NotResult()
         {
             #region Prepare
 

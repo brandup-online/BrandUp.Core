@@ -101,7 +101,7 @@ namespace BrandUp
             return await handlerTask;
         }
 
-        public async Task<Result> FindItemAndSendAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+        public async Task<Result> SendItemAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
             where TItem : class, IItem<TId>
         {
             if (itemId == null)
@@ -117,7 +117,7 @@ namespace BrandUp
 
             return await SendItemAsync(item, command, cancelationToken);
         }
-        public async Task<Result> FindItemAndSendAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
             where TItem : class, IItem<TId>
         {
             if (itemId == null)
@@ -129,9 +129,9 @@ namespace BrandUp
 
             var item = await itemProvider.FindByIdAsync(itemId, cancelationToken);
             if (item == null)
-                return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
+                return Result.Error<TResultData>(string.Empty, $"Not found item by ID \"{itemId}\".");
 
-            return await SendItemAsync<TId, TItem>(item, command, cancelationToken);
+            return await SendItemAsync(item, command, cancelationToken);
         }
 
         public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancelationToken = default)

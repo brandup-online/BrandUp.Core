@@ -3,7 +3,6 @@ using BrandUp.Items;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.ComponentModel.DataAnnotations;
 
 namespace BrandUp
 {
