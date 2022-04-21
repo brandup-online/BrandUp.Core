@@ -23,15 +23,32 @@ namespace BrandUp
             var serviceProvider = serviceCollection.BuildServiceProvider();
             using var scope = serviceProvider.CreateAsyncScope();
 
-            var domain = scope.ServiceProvider.GetService<IDomain>();
-            var validator = scope.ServiceProvider.GetService<IValidator>();
-            var userProvider = scope.ServiceProvider.GetService<UserProvider>();
-            var userProvider2 = scope.ServiceProvider.GetService<Items.IItemProvider<Guid, User>>();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var validator = scope.ServiceProvider.GetRequiredService<IValidator>();
+            var userProvider = scope.ServiceProvider.GetRequiredService<UserProvider>();
+            var userProvider2 = scope.ServiceProvider.GetRequiredService<Items.IItemProvider<Guid, User>>();
 
             Assert.NotNull(domain);
             Assert.NotNull(validator);
             Assert.NotNull(userProvider);
             Assert.NotNull(userProvider2);
+        }
+
+        [Fact]
+        public void RequireScope()
+        {
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+            {
+                options.AddCommand<Example.Commands.JoinUserCommandHandler>();
+            })
+                .AddItemProvider<UserProvider>()
+                .AddValidator<ComponentModelValidator>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
+
+            Assert.Throws<InvalidOperationException>(() => serviceProvider.GetRequiredService<IDomain>());
         }
     }
 }

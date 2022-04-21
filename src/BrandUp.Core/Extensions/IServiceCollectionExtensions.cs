@@ -12,11 +12,6 @@ namespace BrandUp
 
             services.Configure(buildAction);
 
-            services.PostConfigureAll<DomainOptions>(options =>
-            {
-                
-            });
-
             return builder;
         }
     }

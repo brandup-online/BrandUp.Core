@@ -44,13 +44,13 @@ namespace BrandUp
             if (!options.TryGetQueryHandler(queryType, out QueryMetadata queryMetadata))
                 throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
 
-            using var scope = serviceProvider.CreateScope();
+            //using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateObj(query, scope.ServiceProvider);
+            var validationResult = ValidateObj(query, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<IList<TRow>>();
 
-            var handlerObject = CreateQueryHandler(queryMetadata, scope.ServiceProvider);
+            var handlerObject = CreateQueryHandler(queryMetadata, serviceProvider);
 
             var handlerTask = (Task<IList<TRow>>)queryMetadata.HandleMethod.Invoke(handlerObject, new object[] { query, cancellationToken });
 
@@ -68,13 +68,13 @@ namespace BrandUp
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
-            using var scope = serviceProvider.CreateScope();
+            //using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateObj(command, scope.ServiceProvider);
+            var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult;
 
-            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
+            var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
             var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
 
@@ -88,13 +88,13 @@ namespace BrandUp
             if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
 
-            using var scope = serviceProvider.CreateScope();
+            //using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateObj(command, scope.ServiceProvider);
+            var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TResultData>();
 
-            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
+            var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
             var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
 
@@ -146,13 +146,13 @@ namespace BrandUp
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
-            using var scope = serviceProvider.CreateScope();
+            //using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateObj(command, scope.ServiceProvider);
+            var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult;
 
-            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
+            var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
             var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancelationToken });
 
@@ -169,13 +169,13 @@ namespace BrandUp
             if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
 
-            using var scope = serviceProvider.CreateScope();
+            //using var scope = serviceProvider.CreateScope();
 
-            var validationResult = ValidateObj(command, scope.ServiceProvider);
+            var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TResultData>();
 
-            var handlerObject = CreateCommandHandler(commandMetadata, scope.ServiceProvider);
+            var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
             var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancelationToken });
 
