@@ -6,11 +6,12 @@ namespace BrandUp
 {
     public static class IServiceCollectionExtensions
     {
-        public static IDomainBuilder AddDomain(this IServiceCollection services, Action<DomainOptions> buildAction)
+        public static IDomainBuilder AddDomain(this IServiceCollection services, Action<DomainOptions> buildAction = null)
         {
             var builder = new DomainBuilder(services);
 
-            services.Configure(buildAction);
+            if (buildAction != null)
+                services.Configure(buildAction);
 
             return builder;
         }

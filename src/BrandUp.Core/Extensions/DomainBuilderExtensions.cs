@@ -36,10 +36,7 @@ namespace BrandUp
                 if (ItemProviderDefinitionType == providerInterface.GetGenericTypeDefinition())
                 {
                     builder.Services.AddScoped(providerType);
-                    builder.Services.AddScoped(providerInterface, provider =>
-                    {
-                        return provider.GetRequiredService<TProvider>();
-                    });
+                    builder.Services.AddScoped(providerInterface, provider => provider.GetRequiredService<TProvider>());
 
                     return builder;
                 }
