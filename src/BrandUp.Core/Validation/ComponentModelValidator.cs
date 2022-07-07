@@ -12,7 +12,7 @@ namespace BrandUp.Validation
             vc.InitializeServiceProvider(serviceProvider.GetService);
 
             var result = new List<ValidationResult>();
-            var isSuccess = Validator.TryValidateObject(obj, vc, result, false);
+            var isSuccess = Validator.TryValidateObject(obj, vc, result, true);
 
             foreach (var ve in result)
                 errors.Add(new CommandValidationError(ve.ErrorMessage, ve.MemberNames));
