@@ -28,7 +28,7 @@ namespace BrandUp
         {
             return serviceProvider.GetRequiredService<TItemProvider>();
         }
-        public Task<TItem> FindItem<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
+        public Task<TItem> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();

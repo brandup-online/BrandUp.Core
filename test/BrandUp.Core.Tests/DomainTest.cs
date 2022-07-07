@@ -49,7 +49,7 @@ namespace BrandUp
 
             #endregion
 
-            var item = await domain.FindItem<Guid, User>(Guid.Empty);
+            var item = await domain.FindItemAsync<Guid, User>(Guid.Empty);
 
             Assert.NotNull(item);
         }
