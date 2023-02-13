@@ -59,7 +59,7 @@ namespace BrandUp
             return Result.Success(rows);
         }
 
-        public async Task<Result> SendAsync(ICommand command, CancellationToken cancelationToken = default)
+        public async Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
@@ -76,11 +76,11 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
-            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
+            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancellationToken });
 
             return await handlerTask;
         }
-        public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancelationToken = default)
+        public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancellationToken = default)
         {
             if (command == null)
                 throw new ArgumentNullException(nameof(command));
@@ -96,12 +96,12 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
-            var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancelationToken });
+            var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancellationToken });
 
             return await handlerTask;
         }
 
-        public async Task<Result> SendItemAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+        public async Task<Result> SendItemAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
             if (itemId == null)
@@ -111,13 +111,13 @@ namespace BrandUp
 
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
 
-            var item = await itemProvider.FindByIdAsync(itemId, cancelationToken);
+            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
             if (item == null)
                 return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
 
-            return await SendItemAsync(item, command, cancelationToken);
+            return await SendItemAsync(item, command, cancellationToken);
         }
-        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
             if (itemId == null)
@@ -127,14 +127,14 @@ namespace BrandUp
 
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
 
-            var item = await itemProvider.FindByIdAsync(itemId, cancelationToken);
+            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
             if (item == null)
                 return Result.Error<TResultData>(string.Empty, $"Not found item by ID \"{itemId}\".");
 
-            return await SendItemAsync(item, command, cancelationToken);
+            return await SendItemAsync(item, command, cancellationToken);
         }
 
-        public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancelationToken = default)
+        public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
             if (item == null)
@@ -154,11 +154,11 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
-            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancelationToken });
+            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancellationToken });
 
             return await handlerTask;
         }
-        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancelationToken = default)
+        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
             if (item == null)
@@ -177,7 +177,7 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
-            var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancelationToken });
+            var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancellationToken });
 
             return await handlerTask;
         }

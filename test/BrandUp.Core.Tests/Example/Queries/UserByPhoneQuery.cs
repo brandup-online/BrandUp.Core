@@ -15,7 +15,7 @@ namespace BrandUp.Example.Queries
 
     public class UserByPhoneQueryHandler : IQueryHandler<UserByPhoneQuery, User>
     {
-        public Task<IList<User>> HandleAsync(UserByPhoneQuery query, CancellationToken cancelationToken = default)
+        public Task<IList<User>> HandleAsync(UserByPhoneQuery query, CancellationToken cancellationToken = default)
         {
             var result = new List<User>
             {

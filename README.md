@@ -17,7 +17,7 @@ public class UserByPhoneQuery : IQuery<User>
 
 public class UserByPhoneQueryHandler : IQueryHandler<UserByPhoneQuery, User>
 {
-    public Task<IList<User>> HandleAsync(UserByPhoneQuery query, CancellationToken cancelationToken = default)
+    public Task<IList<User>> HandleAsync(UserByPhoneQuery query, CancellationToken cancellationToken = default)
     {
         var result = new List<User>
         {
@@ -60,7 +60,7 @@ public class SignUpCommandHandler : ICommandHandler<SignUpCommand, SignUpResult>
         this.userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
     }
 
-    public async Task<SignUpResult> HandleAsync(SignUpCommand command, CancellationToken cancelationToken = default)
+    public async Task<SignUpResult> HandleAsync(SignUpCommand command, CancellationToken cancellationToken = default)
     {
         var user = new User
             {
@@ -68,7 +68,7 @@ public class SignUpCommandHandler : ICommandHandler<SignUpCommand, SignUpResult>
                 Phone = command.Phone
             };
 
-        await userRepository.CreateAsync(user, cancelationToken);
+        await userRepository.CreateAsync(user, cancellationToken);
 
         var result = new SignUpResult
         {
@@ -129,7 +129,7 @@ public class VisitUserCommand : IItemCommand<Items.User> { }
 
 public class VisitUserCommandHandler : IItemCommandHandler<Items.User, VisitUserCommand>
 {
-    public Task<Result> HandleAsync(Items.User item, VisitUserCommand command, CancellationToken cancelationToken = default)
+    public Task<Result> HandleAsync(Items.User item, VisitUserCommand command, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(Result.Success());
     }
