@@ -6,8 +6,8 @@
 	<Company>BrandUp.online</Company>
 	<Product>BrandUp.Core</Product>
 	<PackageReadmeFile>README.md</PackageReadmeFile>
-	<RepositoryUrl>https://github.com/dkovyazin/BrandUp.Core</RepositoryUrl>
-	<PackageProjectUrl>https://github.com/dkovyazin/BrandUp.Core</PackageProjectUrl>
+	<RepositoryUrl>https://github.com/brandup-online/BrandUp.Core</RepositoryUrl>
+	<PackageProjectUrl>https://github.com/brandup-online/BrandUp.Core</PackageProjectUrl>
 	<RootNamespace>BrandUp</RootNamespace>
   </PropertyGroup>
 
