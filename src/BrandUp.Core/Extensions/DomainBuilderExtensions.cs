@@ -1,8 +1,9 @@
-﻿using BrandUp.Builder;
+﻿using System;
+using BrandUp.Builder;
+using BrandUp.Decorators;
 using BrandUp.Items;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
-using System;
 
 namespace BrandUp
 {
@@ -13,8 +14,7 @@ namespace BrandUp
         public static IDomainBuilder AddValidator<TValidator>(this IDomainBuilder builder)
             where TValidator : class, IValidator
         {
-            if (builder == null)
-                throw new ArgumentNullException(nameof(builder));
+            ArgumentNullException.ThrowIfNull(nameof(builder));
 
             builder.Services.AddScoped<IValidator, TValidator>();
 
@@ -23,8 +23,7 @@ namespace BrandUp
 
         public static IDomainBuilder AddItemProvider<TProvider>(this IDomainBuilder builder)
         {
-            if (builder == null)
-                throw new ArgumentNullException(nameof(builder));
+            ArgumentNullException.ThrowIfNull(nameof(builder));
 
             var providerType = typeof(TProvider);
 
@@ -43,6 +42,16 @@ namespace BrandUp
             }
 
             throw new InvalidOperationException($"Type \"{providerType.AssemblyQualifiedName}\" is do not implementation interface {ItemProviderDefinitionType.FullName}.");
+        }
+
+        public static IDomainBuilder AddDecorators(this IDomainBuilder builder, Action<DecoratorOptions> options)
+        {
+            ArgumentNullException.ThrowIfNull(nameof(builder));
+
+            if (options != null)
+                builder.Services.Configure(options);
+
+            return builder;
         }
     }
 }

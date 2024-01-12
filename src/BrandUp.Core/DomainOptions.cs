@@ -1,8 +1,8 @@
-﻿using BrandUp.Commands;
-using BrandUp.Items;
-using BrandUp.Queries;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using BrandUp.Commands;
+using BrandUp.Decorators;
+using BrandUp.Queries;
 
 namespace BrandUp
 {
@@ -13,6 +13,8 @@ namespace BrandUp
         internal readonly static Type CommandHandlerNotResultDefinitionType = typeof(ICommandHandler<>);
         internal readonly static Type ItemCommandHandlerWithResultDefinitionType = typeof(IItemCommandHandler<,,>);
         internal readonly static Type ItemCommandHandlerNotResultDefinitionType = typeof(IItemCommandHandler<,>);
+
+        private readonly List<Type> commandDecorators = new();
 
         private readonly Dictionary<Type, QueryMetadata> queries = new();
         private readonly Dictionary<Type, CommandMetadata> commandsWithResults = new();
@@ -92,6 +94,12 @@ namespace BrandUp
             }
 
             throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {CommandHandlerWithResultDefinitionType.FullName}.");
+        }
+        public DomainOptions AddCommandDecorator<TDecorator>() where TDecorator : class, ICommandDecorator
+        {
+            commandDecorators.Add(typeof(TDecorator));
+
+            return this;
         }
 
         public bool TryGetQueryHandler(Type queryType, out QueryMetadata queryMetadata)

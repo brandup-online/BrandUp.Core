@@ -1,26 +1,22 @@
-﻿using BrandUp.Commands;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using BrandUp.Commands;
+using BrandUp.Decorators;
 using BrandUp.Items;
 using BrandUp.Queries;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace BrandUp
 {
-    public class Domain : IDomain
+    public class Domain(IOptions<DomainOptions> options, DecoratorContext decoratorContext, IServiceProvider serviceProvider) : IDomain
     {
-        readonly DomainOptions options;
-        readonly IServiceProvider serviceProvider;
-
-        public Domain(IOptions<DomainOptions> options, IServiceProvider serviceProvider)
-        {
-            this.options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-            this.serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
-        }
+        readonly DomainOptions options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        readonly DecoratorContext decoratorContext = decoratorContext ?? throw new ArgumentNullException(nameof(options));
+        readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
         #region IDomain members
 
@@ -28,6 +24,7 @@ namespace BrandUp
         {
             return serviceProvider.GetRequiredService<TItemProvider>();
         }
+
         public Task<TItem> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
@@ -37,8 +34,7 @@ namespace BrandUp
 
         public async Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
         {
-            if (query == null)
-                throw new ArgumentNullException(nameof(query));
+            ArgumentNullException.ThrowIfNull(query);
 
             var queryType = query.GetType();
             if (!options.TryGetQueryHandler(queryType, out QueryMetadata queryMetadata))
@@ -61,8 +57,7 @@ namespace BrandUp
 
         public async Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default)
         {
-            if (command == null)
-                throw new ArgumentNullException(nameof(command));
+            ArgumentNullException.ThrowIfNull(command);
 
             var commandType = command.GetType();
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
@@ -76,9 +71,14 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
-            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancellationToken });
+            await ExecutePreHandlingDecoratorsAsync(command, cancellationToken);
 
-            return await handlerTask;
+            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancellationToken });
+            var handleResult = await handlerTask;
+
+            await ExecutePostHandlingDecoratorsAsync(command, handleResult, cancellationToken);
+
+            return handleResult;
         }
         public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancellationToken = default)
         {
@@ -96,7 +96,12 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
+            await ExecutePreHandlingDecoratorsAsync(command, cancellationToken);
+
             var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { command, cancellationToken });
+            var handleResult = await handlerTask;
+
+            await ExecutePostHandlingDecoratorsAsync(command, handleResult, cancellationToken);
 
             return await handlerTask;
         }
@@ -104,10 +109,8 @@ namespace BrandUp
         public async Task<Result> SendItemAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
-            if (itemId == null)
-                throw new ArgumentNullException(nameof(itemId));
-            if (command == null)
-                throw new ArgumentNullException(nameof(command));
+            ArgumentNullException.ThrowIfNull(itemId);
+            ArgumentNullException.ThrowIfNull(command);
 
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
 
@@ -120,10 +123,8 @@ namespace BrandUp
         public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
-            if (itemId == null)
-                throw new ArgumentNullException(nameof(itemId));
-            if (command == null)
-                throw new ArgumentNullException(nameof(command));
+            ArgumentNullException.ThrowIfNull(itemId);
+            ArgumentNullException.ThrowIfNull(command);
 
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
 
@@ -137,10 +138,8 @@ namespace BrandUp
         public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
-            if (item == null)
-                throw new ArgumentNullException(nameof(item));
-            if (command == null)
-                throw new ArgumentNullException(nameof(command));
+            ArgumentNullException.ThrowIfNull(item);
+            ArgumentNullException.ThrowIfNull(command);
 
             var commandType = command.GetType();
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
@@ -154,17 +153,20 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
-            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancellationToken });
+            await ExecutePreHandlingDecoratorsAsync(command, cancellationToken);
 
-            return await handlerTask;
+            var handlerTask = (Task<Result>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancellationToken });
+            var handleResult = await handlerTask;
+
+            await ExecutePostHandlingDecoratorsAsync(command, handleResult, cancellationToken);
+
+            return handleResult;
         }
         public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
-            if (item == null)
-                throw new ArgumentNullException(nameof(item));
-            if (command == null)
-                throw new ArgumentNullException(nameof(command));
+            ArgumentNullException.ThrowIfNull(item);
+            ArgumentNullException.ThrowIfNull(command);
 
             if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
@@ -177,7 +179,12 @@ namespace BrandUp
 
             var handlerObject = CreateCommandHandler(commandMetadata, serviceProvider);
 
+            await ExecutePreHandlingDecoratorsAsync(command, cancellationToken);
+
             var handlerTask = (Task<Result<TResultData>>)commandMetadata.HandleMethod.Invoke(handlerObject, new object[] { item, command, cancellationToken });
+            var handleResult = await handlerTask;
+
+            await ExecutePostHandlingDecoratorsAsync(command, handleResult, cancellationToken);
 
             return await handlerTask;
         }
@@ -204,7 +211,7 @@ namespace BrandUp
                 constructorParams.Add(paramValue);
             }
 
-            return queryMetadata.Constructor.Invoke(constructorParams.ToArray());
+            return queryMetadata.Constructor.Invoke([.. constructorParams]);
         }
         private static object CreateCommandHandler(CommandMetadata commandMetadata, IServiceProvider serviceProvider)
         {
@@ -215,7 +222,45 @@ namespace BrandUp
                 constructorParams.Add(paramValue);
             }
 
-            return commandMetadata.Constructor.Invoke(constructorParams.ToArray());
+            return commandMetadata.Constructor.Invoke([.. constructorParams]);
+        }
+
+        private async Task<Result> ExecutePreHandlingDecoratorsAsync(ICommand command, CancellationToken cancellationToken)
+        {
+            foreach (var decorator in decoratorContext.CommandDecorators)
+            {
+                try
+                {
+                    var result = await decorator.BeforeExecuteCommandAsync(command, cancellationToken);
+                    if (!result)
+                        return result;
+                }
+                catch
+                {
+                    throw new ArgumentNullException(nameof(command));
+                }
+            }
+
+            return Result.Success();
+        }
+
+        private async Task<Result> ExecutePostHandlingDecoratorsAsync(ICommand command, Result handlingResult, CancellationToken cancellationToken)
+        {
+            foreach (var decorator in decoratorContext.CommandDecorators)
+            {
+                try
+                {
+                    var result = await decorator.AfterExecuteCommandAsync(command, handlingResult, cancellationToken);
+                    if (!result)
+                        return result;
+                }
+                catch
+                {
+                    throw new ArgumentNullException(nameof(command));
+                }
+            }
+
+            return Result.Success();
         }
     }
 }

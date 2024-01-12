@@ -1,9 +1,10 @@
+using System;
+using System.Linq;
+using BrandUp.Example.Decorators;
 using BrandUp.Example.Items;
 using BrandUp.Example.Queries;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Linq;
 using Xunit;
 
 namespace BrandUp
@@ -176,6 +177,34 @@ namespace BrandUp
                 options.AddCommand<Example.Commands.JoinUserCommandHandler>();
             })
                 .AddValidator<ComponentModelValidator>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var joinUserResult = await domain.SendAsync(new Example.Commands.JoinUserCommand());
+
+            Assert.False(joinUserResult.IsSuccess);
+        }
+
+        [Fact]
+        public async void SendAsync_Decorators()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+            {
+                options.AddCommand<Example.Commands.JoinUserCommandHandler>();
+            }).AddDecorators(options =>
+            {
+                options.AddDecorator<TestDecorator>();
+            })
+            .AddValidator<ComponentModelValidator>();
 
             var serviceProvider = serviceCollection.BuildServiceProvider();
             using var scope = serviceProvider.CreateAsyncScope();

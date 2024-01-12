@@ -1,5 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using System;
+﻿using System;
+using BrandUp.Decorators;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BrandUp.Builder
 {
@@ -19,6 +20,7 @@ namespace BrandUp.Builder
             var services = Services;
 
             services.AddScoped<IDomain, Domain>();
+            services.AddSingleton<DecoratorContext>();
         }
     }
 
