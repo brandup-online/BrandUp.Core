@@ -8,6 +8,4 @@
     public interface ICommand<out TResult> : ICommand
     {
     }
-
-    
 }

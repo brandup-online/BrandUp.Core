@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
+﻿using System.Collections.ObjectModel;
 using System.Reflection;
-using System.Threading;
 
 namespace BrandUp.Commands
 {
     public class CommandMetadata
     {
-        private ConstructorInfo constructor;
-        private IReadOnlyCollection<Type> constructorParamTypes;
-        private MethodInfo handleMethod;
+        ConstructorInfo constructor;
+        IReadOnlyCollection<Type> constructorParamTypes;
+        MethodInfo handleMethod;
 
         public Type HandlerType { get; private set; }
         public Type ItemType { get; private set; }
@@ -46,9 +42,9 @@ namespace BrandUp.Commands
 
             Type[] methodParamTypes;
             if (commandMetadata.IsForItem)
-                methodParamTypes = new Type[] { itemType, commandMetadata.CommandType, typeof(CancellationToken) };
+                methodParamTypes = [itemType, commandMetadata.CommandType, typeof(CancellationToken)];
             else
-                methodParamTypes = new Type[] { commandMetadata.CommandType, typeof(CancellationToken) };
+                methodParamTypes = [commandMetadata.CommandType, typeof(CancellationToken)];
 
             commandMetadata.handleMethod = handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase, null, methodParamTypes, null);
             if (commandMetadata.handleMethod == null)

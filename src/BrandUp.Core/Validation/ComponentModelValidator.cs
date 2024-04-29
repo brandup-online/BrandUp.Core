@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace BrandUp.Validation
 {
@@ -8,6 +6,10 @@ namespace BrandUp.Validation
     {
         public bool Validate(object obj, IServiceProvider serviceProvider, IList<CommandValidationError> errors)
         {
+            ArgumentNullException.ThrowIfNull(obj);
+            ArgumentNullException.ThrowIfNull(serviceProvider);
+            ArgumentNullException.ThrowIfNull(errors);
+
             var vc = new ValidationContext(obj);
             vc.InitializeServiceProvider(serviceProvider.GetService);
 

@@ -1,8 +1,5 @@
 ﻿using BrandUp.Commands;
-using BrandUp.Items;
 using BrandUp.Queries;
-using System;
-using System.Collections.Generic;
 
 namespace BrandUp
 {
@@ -14,9 +11,9 @@ namespace BrandUp
         internal readonly static Type ItemCommandHandlerWithResultDefinitionType = typeof(IItemCommandHandler<,,>);
         internal readonly static Type ItemCommandHandlerNotResultDefinitionType = typeof(IItemCommandHandler<,>);
 
-        private readonly Dictionary<Type, QueryMetadata> queries = new();
-        private readonly Dictionary<Type, CommandMetadata> commandsWithResults = new();
-        private readonly Dictionary<Type, CommandMetadata> commandsNotResults = new();
+        readonly Dictionary<Type, QueryMetadata> queries = [];
+        readonly Dictionary<Type, CommandMetadata> commandsWithResults = [];
+        readonly Dictionary<Type, CommandMetadata> commandsNotResults = [];
 
         public DomainOptions AddQuery<THandler>()
         {

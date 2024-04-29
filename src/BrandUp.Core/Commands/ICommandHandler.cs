@@ -1,7 +1,4 @@
-﻿using System.Threading;
-using System.Threading.Tasks;
-
-namespace BrandUp.Commands
+﻿namespace BrandUp.Commands
 {
     public interface ICommandHandler<in TCommand>
         where TCommand : ICommand

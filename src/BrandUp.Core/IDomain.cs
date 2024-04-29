@@ -1,9 +1,6 @@
 ﻿using BrandUp.Commands;
 using BrandUp.Items;
 using BrandUp.Queries;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace BrandUp
 {

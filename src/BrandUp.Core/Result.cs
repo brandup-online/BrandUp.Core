@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
+﻿using System.Collections.ObjectModel;
 
 namespace BrandUp
 {
@@ -15,8 +12,7 @@ namespace BrandUp
         internal Result() { }
         internal Result(IList<IError> errors)
         {
-            if (errors == null)
-                throw new ArgumentNullException(nameof(errors));
+            ArgumentNullException.ThrowIfNull(errors);
             if (errors.Count == 0)
                 throw new ArgumentException("Errors required.", nameof(errors));
 
@@ -29,6 +25,7 @@ namespace BrandUp
         {
             return new Result();
         }
+
         public static Result<TData> Success<TData>(TData obj)
         {
             return new Result<TData>(obj);
@@ -40,29 +37,30 @@ namespace BrandUp
 
         public static Result Error(IEnumerable<IError> errors)
         {
-            if (errors == null)
-                throw new ArgumentNullException(nameof(errors));
+            ArgumentNullException.ThrowIfNull(errors);
             if (!errors.Any())
                 throw new ArgumentException("Errors is empty", nameof(errors));
 
             return new Result(new List<IError>(errors));
         }
+
         public static Result<TData> Error<TData>(IEnumerable<IError> errors)
         {
-            if (errors == null)
-                throw new ArgumentNullException(nameof(errors));
+            ArgumentNullException.ThrowIfNull(errors);
             if (!errors.Any())
                 throw new ArgumentException("Errors is empty", nameof(errors));
 
             return new Result<TData>(new List<IError>(errors));
         }
+
         public static Result Error(string code, string message)
         {
-            return new Result(new List<IError> { new Error(code, message) });
+            return new Result([new Error(code, message)]);
         }
+
         public static Result<TData> Error<TData>(string code, string message)
         {
-            return new Result<TData>(new List<IError> { new Error(code, message) });
+            return new Result<TData>([new Error(code, message)]);
         }
 
         #endregion
@@ -90,6 +88,7 @@ namespace BrandUp
         {
             Data = obj ?? throw new ArgumentNullException(nameof(obj));
         }
+
         internal Result(IList<IError> errors) : base(errors) { }
     }
 
