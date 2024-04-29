@@ -9,6 +9,7 @@
 	<PackageReadmeFile>README.md</PackageReadmeFile>
 	<RepositoryUrl>https://github.com/brandup-online/BrandUp.Core</RepositoryUrl>
 	<PackageProjectUrl>https://github.com/brandup-online/BrandUp.Core</PackageProjectUrl>
+	<PackageIcon>icon.png</PackageIcon>
 	<RootNamespace>BrandUp</RootNamespace>
   </PropertyGroup>
 
@@ -21,6 +22,7 @@
 
   <ItemGroup>
 	<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
+	<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
 	<PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
   </ItemGroup>
 

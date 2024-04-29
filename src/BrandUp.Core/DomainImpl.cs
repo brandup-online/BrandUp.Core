@@ -7,7 +7,7 @@ using Microsoft.Extensions.Options;
 
 namespace BrandUp
 {
-    public class Domain(IOptions<DomainOptions> options, IServiceProvider serviceProvider) : IDomain
+    internal class DomainImpl(IOptions<DomainOptions> options, IServiceProvider serviceProvider) : IDomain
     {
         readonly DomainOptions options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -16,14 +16,14 @@ namespace BrandUp
 
         public TItemProvider GetItemProvider<TItemProvider>()
         {
-            return serviceProvider.GetRequiredService<TItemProvider>();
+            return serviceProvider.GetService<TItemProvider>() ?? throw new InvalidOperationException($"Not found {typeof(TItemProvider).FullName} item provider.");
         }
 
-        public Task<TItem> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
+        public async Task<TItem> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
             var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
-            return itemProvider.FindByIdAsync(itemId, cancellationToken);
+            return await itemProvider.FindByIdAsync(itemId, cancellationToken);
         }
 
         public async Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default)
@@ -33,8 +33,6 @@ namespace BrandUp
             var queryType = query.GetType();
             if (!options.TryGetQueryHandler(queryType, out QueryMetadata queryMetadata))
                 throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
-
-            //using var scope = serviceProvider.CreateScope();
 
             var validationResult = ValidateObj(query, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -57,8 +55,6 @@ namespace BrandUp
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
-            //using var scope = serviceProvider.CreateScope();
-
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult;
@@ -77,8 +73,6 @@ namespace BrandUp
             if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
 
-            //using var scope = serviceProvider.CreateScope();
-
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TResultData>();
@@ -90,36 +84,6 @@ namespace BrandUp
             return await handlerTask;
         }
 
-        public async Task<Result> SendItemAsync<TId, TItem>(TId itemId, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
-            where TItem : class, IItem<TId>
-        {
-            ArgumentNullException.ThrowIfNull(itemId);
-            ArgumentNullException.ThrowIfNull(command);
-
-            var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
-
-            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
-            if (item == null)
-                return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
-
-            return await SendItemAsync(item, command, cancellationToken);
-        }
-
-        public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
-            where TItem : class, IItem<TId>
-        {
-            ArgumentNullException.ThrowIfNull(itemId);
-            ArgumentNullException.ThrowIfNull(command);
-
-            var itemProvider = serviceProvider.GetRequiredService<IItemProvider<TId, TItem>>();
-
-            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
-            if (item == null)
-                return Result.Error<TResultData>(string.Empty, $"Not found item by ID \"{itemId}\".");
-
-            return await SendItemAsync(item, command, cancellationToken);
-        }
-
         public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
@@ -129,8 +93,6 @@ namespace BrandUp
             var commandType = command.GetType();
             if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
-
-            //using var scope = serviceProvider.CreateScope();
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -151,8 +113,6 @@ namespace BrandUp
 
             if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata commandMetadata))
                 throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
-
-            //using var scope = serviceProvider.CreateScope();
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)

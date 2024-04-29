@@ -1,13 +1,12 @@
-﻿using System.Collections.ObjectModel;
-
-namespace BrandUp
+﻿namespace BrandUp
 {
     public class Result
     {
-        readonly IReadOnlyCollection<IError> errors;
+        readonly IError[] errors;
 
         public bool IsSuccess => errors == null;
-        public IReadOnlyCollection<IError> Errors => errors;
+        public IEnumerable<IError> Errors => errors;
+        public int CountErrors => IsSuccess ? 0 : errors.Length;
 
         internal Result() { }
         internal Result(IList<IError> errors)
@@ -16,7 +15,7 @@ namespace BrandUp
             if (errors.Count == 0)
                 throw new ArgumentException("Errors required.", nameof(errors));
 
-            this.errors = new ReadOnlyCollection<IError>(errors);
+            this.errors = [.. errors];
         }
 
         #region Success
@@ -74,7 +73,7 @@ namespace BrandUp
             if (IsSuccess)
                 return "Success";
             else
-                return $"Errors: {errors.Count}";
+                return $"Errors: {CountErrors}";
         }
 
         #endregion
@@ -90,6 +89,20 @@ namespace BrandUp
         }
 
         internal Result(IList<IError> errors) : base(errors) { }
+
+        #region Object members
+
+        public override string ToString()
+        {
+            var dataType = typeof(TData);
+
+            if (IsSuccess)
+                return $"Success ({dataType.FullName})";
+            else
+                return $"Errors ({dataType.FullName}): {CountErrors}";
+        }
+
+        #endregion
     }
 
     public class Error : IError

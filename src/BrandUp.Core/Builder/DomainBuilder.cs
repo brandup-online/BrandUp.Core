@@ -17,7 +17,7 @@ namespace BrandUp.Builder
         {
             var services = Services;
 
-            services.AddScoped<IDomain, Domain>();
+            services.AddScoped<IDomain, DomainImpl>();
         }
     }
 
