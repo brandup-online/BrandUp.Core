@@ -10,6 +10,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{411E61E6-C7F7-4241-9DEB-AB92507BC714}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
+		azure-pipelines.yml = azure-pipelines.yml
 		README.md = README.md
 	EndProjectSection
 EndProject

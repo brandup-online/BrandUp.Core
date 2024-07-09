@@ -1,0 +1,141 @@
+trigger:
+- main
+
+resources:
+- repo: self
+
+variables:
+- group: public-nuget
+- name: vmImageName
+  value: 'ubuntu-latest'
+- name: restore-projects
+  value: '**/*.csproj'
+- name: test-projects
+  value: '**/*[Tt]ests/*.csproj'
+- name: buildPlatform
+  value: 'Any CPU'
+- name: buildConfiguration
+  value: 'Release'
+- name: envName
+  value: 'brandup-core'
+- name: version-major
+  value: "1"
+- name: version-minor
+  value: "2"
+
+name: $(version-major).$(version-minor).$(rev:r)
+
+pool:
+  vmImage: $(vmImageName)
+
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: BuildNet
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+      workspace:
+        clean: all
+    steps:
+    - script: |
+        echo "Hello, world!"
+        echo "build number - $(Build.BuildNumber)"
+      displayName: 'print variables'
+
+    - checkout: self
+      clean: "true"
+      persistCredentials: "true"
+
+    - task: UseDotNet@2
+      displayName: 'use dotnet 8.x'
+      inputs:
+        packageType: 'sdk'
+        version: '8.x'
+        
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet restore'
+      inputs:
+        command: 'restore'
+        projects: $(restore-projects)
+        feedRestore: 'BrandUp'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet build'
+      inputs:
+        command: 'build'
+        projects: $(restore-projects)
+        arguments: --configuration $(buildConfiguration) /p:Version=$(Build.BuildNumber) /p:FileVersion=$(Build.BuildNumber)
+
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet test'
+      inputs:
+        command: test
+        projects: $(test-projects)
+        arguments: --configuration $(buildConfiguration) --collect "Code coverage"
+        failTaskOnFailedTests: true
+        publishTestResults: true
+        testRunTitle: "solution tests"
+
+    - task: PublishTestResults@2
+      enabled: "false"
+      displayName: 'publish test/coverage results'
+      condition: succeededOrFailed()
+      inputs:
+        testRunner: VSTest
+        testResultsFiles: '$(Agent.TempDirectory)/**/*.trx'
+        
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet pack'
+      inputs:
+        command: pack
+        packagesToPack: 'src/*/*.csproj'
+        versioningScheme: byBuildNumber
+        packDirectory: $(Build.ArtifactStagingDirectory)
+
+    - publish: $(build.artifactstagingdirectory)
+      displayName: publish artifact
+      condition: succeededOrFailed()
+      artifact: net
+      
+  - job: GitTag
+    displayName: Add git tag
+    dependsOn: [ BuildNet ]
+    condition: succeeded()
+    steps:
+    - checkout: self
+      clean: "true"
+      persistCredentials: "true"
+
+    - pwsh: |
+          git config --global user.name "AzureDevOps Agent"
+          git tag "$(Build.BuildNumber)" --force
+          git push origin "$(Build.BuildNumber)" --force
+          Write-Output "Tagging $(Build.Repository.Name) with $(Build.BuildNumber)"
+      displayName:  set git tag
+
+- stage: Production
+  displayName: Deploy stage
+  dependsOn: Build
+  jobs:
+  - deployment: Production
+    condition: succeeded()
+    displayName: Production
+    pool:
+      vmImage: $(vmImageName)
+    environment: $(envName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          
+          - task: DotNetCoreCLI@2
+            displayName: 'publish nuget'
+            inputs:
+              command: custom
+              custom: nuget
+              arguments: >
+                push $(Pipeline.Workspace)/net/*.nupkg
+                -s $(nuget-api-url)
+                -k $(nuget-api-key)
