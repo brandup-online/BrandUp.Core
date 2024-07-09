@@ -1,9 +1,10 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using BrandUp.Example.Items;
 using BrandUp.Example.Queries;
 using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Linq;
 using Xunit;
 
 namespace BrandUp
@@ -33,7 +34,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void FindItemAsync()
+        public async Task FindItemAsync()
         {
             #region Prepare
 
@@ -55,7 +56,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void QueryAsync()
+        public async Task QueryAsync()
         {
             #region Prepare
 
@@ -83,7 +84,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void SendItemAsync_ById_NotResult()
+        public async Task SendItemAsync_ById_NotResult()
         {
             #region Prepare
 
@@ -111,7 +112,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void SendItemAsync_ByItem_NotResult()
+        public async Task SendItemAsync_ByItem_NotResult()
         {
             #region Prepare
 
@@ -138,7 +139,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void SendAsync_WithResult()
+        public async Task SendAsync_WithResult()
         {
             #region Prepare
 
@@ -165,7 +166,7 @@ namespace BrandUp
         }
 
         [Fact]
-        public async void SendAsync_CommandInvalid()
+        public async Task SendAsync_CommandInvalid()
         {
             #region Prepare
 
