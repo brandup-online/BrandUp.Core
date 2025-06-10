@@ -66,7 +66,7 @@ stages:
       inputs:
         command: 'build'
         projects: $(restore-projects)
-        arguments: --configuration $(buildConfiguration) /p:Version=$(Build.BuildNumber) /p:FileVersion=$(Build.BuildNumber)
+        arguments: --configuration $(buildConfiguration) /p:Version=$(Build.BuildNumber)
 
     - task: DotNetCoreCLI@2
       displayName: 'dotnet test'
@@ -87,13 +87,13 @@ stages:
         testResultsFiles: '$(Agent.TempDirectory)/**/*.trx'
         
     - task: DotNetCoreCLI@2
-      displayName: 'dotnet pack'
+      displayName: "dotnet pack"
       inputs:
-        command: pack
-        packagesToPack: 'src/*/*.csproj'
-        versioningScheme: byBuildNumber
-        packDirectory: $(Build.ArtifactStagingDirectory)
-
+        command: "custom"
+        projects: "src/*/*.csproj"
+        custom: "pack"
+        arguments: "--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory) /p:Version=$(Build.BuildNumber)"
+        
     - publish: $(build.artifactstagingdirectory)
       displayName: publish artifact
       condition: succeededOrFailed()
