@@ -83,9 +83,9 @@
     {
         public TData Data { get; }
 
-        internal Result(TData obj)
+        internal Result(TData data)
         {
-            Data = obj ?? throw new ArgumentNullException(nameof(obj));
+            Data = data;
         }
 
         internal Result(IList<IError> errors) : base(errors) { }

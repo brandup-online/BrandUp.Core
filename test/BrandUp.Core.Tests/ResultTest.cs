@@ -44,5 +44,21 @@ namespace BrandUp
 
             Assert.True(logger.LogIfError(result));
         }
+
+        [Fact]
+        public void Typed_null()
+        {
+            var result = Result.Success<string>(null);
+            Assert.True(result);
+            Assert.Null(result.Data);
+        }
+
+        [Fact]
+        public void Typed_not_null()
+        {
+            var result = Result.Success("test");
+            Assert.True(result);
+            Assert.Equal("test", result.Data);
+        }
     }
 }

@@ -7,7 +7,7 @@
             if (result.IsSuccess)
                 throw new ArgumentException("Result required is errors.");
 
-            return new Result<TData>(new List<IError>(result.Errors));
+            return new Result<TData>([.. result.Errors]);
         }
     }
 }
