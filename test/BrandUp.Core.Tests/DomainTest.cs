@@ -50,7 +50,9 @@ namespace BrandUp
 
             #endregion
 
-            var item = await domain.FindItemAsync<Guid, User>(Guid.Empty);
+            var item = await domain.FindItemAsync<Guid, User>(
+                Guid.Empty,
+                TestContext.Current.CancellationToken);
 
             Assert.NotNull(item);
         }
@@ -75,7 +77,9 @@ namespace BrandUp
 
             #endregion
 
-            var userByPhoneResult = await domain.QueryAsync(new UserByPhoneQuery { Phone = "89232229022" });
+            var userByPhoneResult = await domain.QueryAsync(
+                new UserByPhoneQuery { Phone = "89232229022" },
+                TestContext.Current.CancellationToken);
 
             Assert.True(userByPhoneResult.IsSuccess);
             Assert.NotNull(userByPhoneResult.Data);
@@ -106,7 +110,9 @@ namespace BrandUp
 
             var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
 
-            var joinUserResult = await domain.SendItemAsync(Guid.Empty, new Example.Commands.VisitUserCommand());
+            var joinUserResult = await domain.SendItemAsync(Guid.Empty,
+                new Example.Commands.VisitUserCommand(),
+                TestContext.Current.CancellationToken);
 
             Assert.True(joinUserResult.IsSuccess);
         }
@@ -133,7 +139,9 @@ namespace BrandUp
 
             var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
 
-            var joinUserResult = await domain.SendItemAsync(user, new Example.Commands.VisitUserCommand());
+            var joinUserResult = await domain.SendItemAsync(user,
+                new Example.Commands.VisitUserCommand(),
+                TestContext.Current.CancellationToken);
 
             Assert.True(joinUserResult.IsSuccess);
         }
@@ -158,7 +166,9 @@ namespace BrandUp
 
             #endregion
 
-            var joinUserResult = await domain.SendAsync(new Example.Commands.JoinUserCommand { Phone = "+79231145449" });
+            var joinUserResult = await domain.SendAsync(
+                new Example.Commands.JoinUserCommand { Phone = "+79231145449" },
+                TestContext.Current.CancellationToken);
 
             Assert.True(joinUserResult.IsSuccess);
             Assert.NotNull(joinUserResult.Data.User);
@@ -185,7 +195,9 @@ namespace BrandUp
 
             #endregion
 
-            var joinUserResult = await domain.SendAsync(new Example.Commands.JoinUserCommand());
+            var joinUserResult = await domain.SendAsync(
+                new Example.Commands.JoinUserCommand(),
+                TestContext.Current.CancellationToken);
 
             Assert.False(joinUserResult.IsSuccess);
         }
