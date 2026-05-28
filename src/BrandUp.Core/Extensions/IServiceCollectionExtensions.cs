@@ -8,7 +8,7 @@ namespace BrandUp
     {
         readonly static Type ItemProviderDefinitionType = typeof(IItemProvider<,>);
 
-        public static IDomainBuilder AddDomain(this IServiceCollection services, Action<DomainOptions> buildAction = null)
+        public static IDomainBuilder AddDomain(this IServiceCollection services, Action<DomainOptions>? buildAction = null)
         {
             var builder = new DomainBuilder(services);
 
@@ -42,7 +42,7 @@ namespace BrandUp
                 if (ItemProviderDefinitionType == providerInterface.GetGenericTypeDefinition())
                 {
                     services.AddScoped(providerType);
-                    services.AddScoped(providerInterface, provider => provider.GetRequiredService<TProvider>());
+                    services.AddScoped(providerInterface, provider => provider.GetRequiredService(providerType));
 
                     return services;
                 }

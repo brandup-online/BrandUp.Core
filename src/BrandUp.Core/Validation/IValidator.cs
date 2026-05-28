@@ -9,9 +9,9 @@
     {
         public IEnumerable<string> MemberNames { get; }
 
-        public CommandValidationError(string message, IEnumerable<string> memberNames) : base(string.Empty, message)
+        public CommandValidationError(string message, IEnumerable<string>? memberNames) : base(string.Empty, message)
         {
-            MemberNames = memberNames ?? System.Linq.Enumerable.Empty<string>();
+            MemberNames = memberNames ?? [];
         }
     }
 }

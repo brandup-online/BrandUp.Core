@@ -1,16 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<TargetFramework>net10.0</TargetFramework>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
 		<Authors>Dmitry Kovyazin</Authors>
 		<Company>BrandUp.online</Company>
 		<Product>BrandUp.Core</Product>
+		<Description>Base framework for .NET development: a universal Result structure and lightweight CQRS infrastructure (commands, queries and items) on top of Microsoft.Extensions.DependencyInjection.</Description>
+		<PackageTags>cqrs;result;command;query;domain;mediator;brandup</PackageTags>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<RepositoryUrl>https://github.com/brandup-online/BrandUp.Core</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
 		<PackageProjectUrl>https://github.com/brandup-online/BrandUp.Core</PackageProjectUrl>
 		<PackageIcon>icon.png</PackageIcon>
 		<RootNamespace>BrandUp</RootNamespace>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	</PropertyGroup>
 
 	<ItemGroup>

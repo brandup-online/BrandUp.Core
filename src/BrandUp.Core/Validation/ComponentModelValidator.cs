@@ -17,7 +17,7 @@ namespace BrandUp.Validation
             var isSuccess = Validator.TryValidateObject(obj, vc, result, true);
 
             foreach (var ve in result)
-                errors.Add(new CommandValidationError(ve.ErrorMessage, ve.MemberNames));
+                errors.Add(new CommandValidationError(ve.ErrorMessage!, ve.MemberNames));
 
             return isSuccess;
         }

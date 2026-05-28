@@ -2,11 +2,11 @@
 {
     public class Result
     {
-        readonly IError[] errors;
+        readonly IError[]? errors;
 
         public bool IsSuccess => errors == null;
-        public IEnumerable<IError> Errors => errors;
-        public int CountErrors => IsSuccess ? 0 : errors.Length;
+        public IEnumerable<IError> Errors => errors ?? [];
+        public int CountErrors => errors?.Length ?? 0;
 
         internal Result() { }
         internal Result(IList<IError> errors)
@@ -81,7 +81,7 @@
 
     public class Result<TData> : Result
     {
-        public TData Data { get; }
+        public TData Data { get; } = default!;
 
         internal Result(TData data)
         {
@@ -110,7 +110,7 @@
         public string Code { get; }
         public string Message { get; }
 
-        public Error(string code, string message)
+        public Error(string? code, string message)
         {
             if (string.IsNullOrEmpty(message))
                 throw new ArgumentException("Error message is required.");
