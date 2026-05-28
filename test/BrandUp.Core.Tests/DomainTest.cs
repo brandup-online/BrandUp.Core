@@ -319,6 +319,32 @@ namespace BrandUp
         }
 
         [Fact]
+        public async Task SendAsync_NonGeneric_OnCommandWithResult_Throws()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddSingleton<Example.Commands.ICounter, Example.Commands.Counter>();
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.CounterCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                domain.SendAsync(
+                    (Commands.ICommand)new Example.Commands.CounterCommand(),
+                    TestContext.Current.CancellationToken));
+        }
+
+        [Fact]
         public async Task SendAsync_HandlerException_PropagatesOriginal()
         {
             #region Prepare

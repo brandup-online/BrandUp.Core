@@ -54,6 +54,8 @@ namespace BrandUp
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+            if (commandMetadata.WithResult)
+                throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendAsync<TResult>.");
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -73,6 +75,8 @@ namespace BrandUp
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+            if (!commandMetadata.WithResult)
+                throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendAsync.");
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -94,6 +98,8 @@ namespace BrandUp
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+            if (commandMetadata.WithResult)
+                throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendItemAsync<TId, TItem, TResult>.");
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -115,6 +121,8 @@ namespace BrandUp
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+            if (!commandMetadata.WithResult)
+                throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendItemAsync<TId, TItem>.");
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
