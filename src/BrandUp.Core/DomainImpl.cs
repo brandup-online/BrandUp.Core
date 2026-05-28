@@ -1,4 +1,4 @@
-﻿using BrandUp.Commands;
+using BrandUp.Commands;
 using BrandUp.Items;
 using BrandUp.Queries;
 using BrandUp.Validation;
@@ -39,12 +39,16 @@ namespace BrandUp
                 return validationResult.AsObjectiveErrors<IList<TRow>>();
 
             var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, queryMetadata.HandlerType);
+            try
+            {
+                var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
 
-            var handlerTask = (Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken);
-
-            var rows = await handlerTask.ConfigureAwait(false);
-
-            return Result.Success(rows);
+                return Result.Success(rows);
+            }
+            finally
+            {
+                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+            }
         }
 
         public async Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default)
@@ -62,10 +66,14 @@ namespace BrandUp
                 return validationResult;
 
             var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-
-            var handlerTask = (Task<Result>)commandMetadata.Invoke(handlerObject, null, command, cancellationToken);
-
-            return await handlerTask.ConfigureAwait(false);
+            try
+            {
+                return await ((Task<Result>)commandMetadata.Invoke(handlerObject, null, command, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+            }
         }
 
         public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancellationToken = default)
@@ -83,10 +91,14 @@ namespace BrandUp
                 return validationResult.AsObjectiveErrors<TResultData>();
 
             var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-
-            var handlerTask = (Task<Result<TResultData>>)commandMetadata.Invoke(handlerObject, null, command, cancellationToken);
-
-            return await handlerTask.ConfigureAwait(false);
+            try
+            {
+                return await ((Task<Result<TResultData>>)commandMetadata.Invoke(handlerObject, null, command, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+            }
         }
 
         public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
@@ -106,10 +118,14 @@ namespace BrandUp
                 return validationResult;
 
             var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-
-            var handlerTask = (Task<Result>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken);
-
-            return await handlerTask.ConfigureAwait(false);
+            try
+            {
+                return await ((Task<Result>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+            }
         }
 
         public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
@@ -129,10 +145,14 @@ namespace BrandUp
                 return validationResult.AsObjectiveErrors<TResultData>();
 
             var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-
-            var handlerTask = (Task<Result<TResultData>>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken);
-
-            return await handlerTask.ConfigureAwait(false);
+            try
+            {
+                return await ((Task<Result<TResultData>>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+            }
         }
 
         #endregion
@@ -148,6 +168,14 @@ namespace BrandUp
                 return Result.Error(errors);
 
             return Result.Success();
+        }
+
+        static async ValueTask DisposeHandlerAsync(object handler)
+        {
+            if (handler is IAsyncDisposable asyncDisposable)
+                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
+            else if (handler is IDisposable disposable)
+                disposable.Dispose();
         }
     }
 }
