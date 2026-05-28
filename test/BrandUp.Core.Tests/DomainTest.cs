@@ -287,6 +287,38 @@ namespace BrandUp
         }
 
         [Fact]
+        public async Task SendAsync_CommandsSharingResultType_DispatchByCommandType()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddSingleton<Example.Commands.ICounter, Example.Commands.Counter>();
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.CounterCommandHandler>();
+                    options.AddCommand<Example.Commands.SquareCounterCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var counter = await domain.SendAsync(
+                new Example.Commands.CounterCommand(),
+                TestContext.Current.CancellationToken);
+            var square = await domain.SendAsync(
+                new Example.Commands.SquareCounterCommand(),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(42, counter.Data);
+            Assert.Equal(42 * 42, square.Data);
+        }
+
+        [Fact]
         public async Task SendAsync_HandlerException_PropagatesOriginal()
         {
             #region Prepare

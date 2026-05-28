@@ -34,6 +34,25 @@ namespace BrandUp.Example.Commands
         }
     }
 
+    public class SquareCounterCommand : ICommand<int>
+    {
+    }
+
+    public class SquareCounterCommandHandler : ICommandHandler<SquareCounterCommand, int>
+    {
+        readonly ICounter counter;
+
+        public SquareCounterCommandHandler(ICounter counter)
+        {
+            this.counter = counter ?? throw new ArgumentNullException(nameof(counter));
+        }
+
+        public Task<Result<int>> HandleAsync(SquareCounterCommand command, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Result.Success(counter.Value * counter.Value));
+        }
+    }
+
     public class FailingCommand : ICommand
     {
     }
