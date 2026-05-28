@@ -5,7 +5,7 @@ Base framework for .NET development.
 * Universal result structure
 * CQRS infrastructure
 
-## Qieries
+## Queries
 
 ```
 
@@ -38,7 +38,7 @@ serviceCollection.AddDomain(options =>
     })
     .AddValidator<ComponentModelValidator>();
 
-var userByPhoneResult = await domain.ReadAsync(new UserByPhoneQuery { Phone = "89232229022" });
+var userByPhoneResult = await domain.QueryAsync(new UserByPhoneQuery { Phone = "89232229022" });
 
 // userByPhoneResult.IsSuccess
 // userByPhoneResult.Errors
@@ -99,7 +99,7 @@ serviceCollection.AddDomain(options =>
     .AddValidator<ComponentModelValidator>();
 
 var domain = serviceProvider.GetRequiredService<IDomain>();
-var signUpResult = await domain.SendAsync(new Example.Commands.SignUpCommandHandler { Phone = "+79231145449" });
+var signUpResult = await domain.SendAsync(new Example.Commands.SignUpCommand { Phone = "+79231145449" });
 
 // signUpResult.IsSuccess
 // signUpResult.Errors
@@ -119,7 +119,7 @@ public class User : IItem<Guid>
 
 public class UserProvider : IItemProvider<Guid, User>
 {
-    public Task<User> FindByIdASync(Guid itemId, CancellationToken cancellationToken = default)
+    public Task<User> FindByIdAsync(Guid itemId, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(new User { Id = new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"), Phone = "79232229022" });
     }
@@ -142,7 +142,7 @@ serviceCollection.AddDomain(options =>
     .AddItemProvider<UserProvider>();
 
 var domain = serviceProvider.GetRequiredService<IDomain>();
-var item = await domain.FindItem<Guid, User>(new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"));
+var item = await domain.FindItemAsync<Guid, User>(new Guid("0b1eb946-c07c-406c-a7ba-d56b007c830a"));
 
 var userProvider1 = serviceProvider.GetService<UserProvider>();
 var userProvider2 = serviceProvider.GetService<IItemProvider<Guid, User>>();
