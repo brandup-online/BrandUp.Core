@@ -3,13 +3,17 @@ using Microsoft.Extensions.Logging;
 
 namespace BrandUp
 {
+    /// <summary>
+    /// <see cref="ILogger"/> extensions for logging failed results.
+    /// </summary>
     public static class ILoggerExtensions
     {
         /// <summary>
-        /// Write log if result with errors.
+        /// Logs the errors of a failed result, if any.
         /// </summary>
-        /// <param name="result">Result object.</param>
-        /// <returns>True - has errors. False - <see cref="result"> is success.</returns>
+        /// <param name="logger">Logger to write to.</param>
+        /// <param name="result">Result to inspect.</param>
+        /// <returns><see langword="true"/> if <paramref name="result"/> had errors; otherwise <see langword="false"/>.</returns>
         public static bool LogIfError(this ILogger logger, Result result)
         {
             ArgumentNullException.ThrowIfNull(logger);
