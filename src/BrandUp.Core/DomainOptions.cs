@@ -5,6 +5,10 @@ using BrandUp.Queries;
 
 namespace BrandUp
 {
+    /// <summary>
+    /// Registry of query and command handlers that backs an <see cref="IDomain"/>.
+    /// Configured via <c>AddDomain</c>; handlers are keyed by query type and command type.
+    /// </summary>
     public class DomainOptions
     {
         internal readonly static Type QueryHandlerDefinitionType = typeof(IQueryHandler<,>);
@@ -19,6 +23,14 @@ namespace BrandUp
         FrozenDictionary<Type, QueryMetadata>? frozenQueries;
         FrozenDictionary<Type, CommandMetadata>? frozenCommands;
 
+        /// <summary>
+        /// Registers a query handler.
+        /// </summary>
+        /// <typeparam name="THandler">A type implementing <see cref="IQueryHandler{TQuery, TRow}"/>.</typeparam>
+        /// <returns>This instance, for chaining.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// The type is not a query handler, or a handler for the same query type is already registered.
+        /// </exception>
         public DomainOptions AddQuery<THandler>()
         {
             var handlerType = typeof(THandler);
@@ -43,6 +55,18 @@ namespace BrandUp
 
             throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {QueryHandlerDefinitionType.FullName}.");
         }
+        /// <summary>
+        /// Registers a command handler (with or without result, and item or non-item).
+        /// </summary>
+        /// <typeparam name="THandler">
+        /// A type implementing one of <see cref="ICommandHandler{TCommand}"/>,
+        /// <see cref="ICommandHandler{TCommand, TResult}"/>, <see cref="IItemCommandHandler{TItem, TCommand}"/>
+        /// or <see cref="IItemCommandHandler{TItem, TCommand, TResult}"/>.
+        /// </typeparam>
+        /// <returns>This instance, for chaining.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// The type is not a command handler, or a handler for the same command type is already registered.
+        /// </exception>
         public DomainOptions AddCommand<THandler>()
         {
             var handlerType = typeof(THandler);
@@ -97,11 +121,24 @@ namespace BrandUp
             throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {CommandHandlerWithResultDefinitionType.FullName}.");
         }
 
+        /// <summary>
+        /// Looks up the metadata of the handler registered for the given query type.
+        /// </summary>
+        /// <param name="queryType">Concrete query type.</param>
+        /// <param name="queryMetadata">The found metadata, or <see langword="null"/> if not registered.</param>
+        /// <returns><see langword="true"/> if a handler is registered.</returns>
         public bool TryGetQueryHandler(Type queryType, [MaybeNullWhen(false)] out QueryMetadata queryMetadata)
         {
             frozenQueries ??= queries.ToFrozenDictionary();
             return frozenQueries.TryGetValue(queryType, out queryMetadata);
         }
+
+        /// <summary>
+        /// Looks up the metadata of the handler registered for the given command type.
+        /// </summary>
+        /// <param name="commandType">Concrete command type.</param>
+        /// <param name="commandMetadata">The found metadata, or <see langword="null"/> if not registered.</param>
+        /// <returns><see langword="true"/> if a handler is registered.</returns>
         public bool TryGetCommandHandler(Type commandType, [MaybeNullWhen(false)] out CommandMetadata commandMetadata)
         {
             frozenCommands ??= commands.ToFrozenDictionary();

@@ -3,13 +3,31 @@ using System.Reflection;
 
 namespace BrandUp.Queries
 {
+    /// <summary>
+    /// Reflection metadata describing a registered query handler and a cached invoker for its <c>HandleAsync</c> method.
+    /// </summary>
     public class QueryMetadata
     {
         readonly Func<object, object, CancellationToken, object> invoker;
 
+        /// <summary>
+        /// Concrete handler type.
+        /// </summary>
         public Type HandlerType { get; }
+
+        /// <summary>
+        /// Concrete query type the handler handles.
+        /// </summary>
         public Type QueryType { get; }
+
+        /// <summary>
+        /// Row type returned by the query.
+        /// </summary>
         public Type ResultType { get; }
+
+        /// <summary>
+        /// The handler's <c>HandleAsync</c> method.
+        /// </summary>
         public MethodInfo HandleMethod { get; }
 
         QueryMetadata(Type handlerType, Type queryType, Type resultType, MethodInfo handleMethod, Func<object, object, CancellationToken, object> invoker)

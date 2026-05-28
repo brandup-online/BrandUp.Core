@@ -2,8 +2,12 @@
 
 namespace BrandUp.Validation
 {
+    /// <summary>
+    /// <see cref="IValidator"/> based on <see cref="System.ComponentModel.DataAnnotations"/> attributes.
+    /// </summary>
     public class ComponentModelValidator : IValidator
     {
+        /// <inheritdoc/>
         public bool Validate(object obj, IServiceProvider serviceProvider, IList<CommandValidationError> errors)
         {
             ArgumentNullException.ThrowIfNull(obj);
