@@ -7,7 +7,7 @@ namespace BrandUp
     public interface IDomain
     {
         TItemProvider GetItemProvider<TItemProvider>();
-        Task<TItem> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
+        Task<TItem?> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>;
 
         Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default);

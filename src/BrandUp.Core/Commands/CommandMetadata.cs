@@ -1,56 +1,72 @@
-﻿using System.Collections.ObjectModel;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace BrandUp.Commands
 {
     public class CommandMetadata
     {
-        ConstructorInfo constructor;
-        IReadOnlyCollection<Type> constructorParamTypes;
-        MethodInfo handleMethod;
+        readonly Func<object, object?, object, CancellationToken, object> invoker;
 
-        public Type HandlerType { get; private set; }
-        public Type ItemType { get; private set; }
-        public Type CommandType { get; private set; }
-        public Type ResultType { get; private set; }
-        public ConstructorInfo Constructor => constructor;
-        public IReadOnlyCollection<Type> ConstructorParamTypes => constructorParamTypes;
-        public MethodInfo HandleMethod => handleMethod;
+        public Type HandlerType { get; }
+        public Type? ItemType { get; }
+        public Type CommandType { get; }
+        public Type? ResultType { get; }
+        public MethodInfo HandleMethod { get; }
         public bool IsForItem => ItemType != null;
         public bool WithResult => ResultType != null;
 
-        internal static CommandMetadata Build(Type handlerType, Type handlerInterface, Type itemType, Type commandType, Type resultType)
+        CommandMetadata(Type handlerType, Type? itemType, Type commandType, Type? resultType, MethodInfo handleMethod, Func<object, object?, object, CancellationToken, object> invoker)
         {
-            var commandMetadata = new CommandMetadata
-            {
-                HandlerType = handlerType,
-                ItemType = itemType,
-                CommandType = commandType,
-                ResultType = resultType
-            };
+            HandlerType = handlerType;
+            ItemType = itemType;
+            CommandType = commandType;
+            ResultType = resultType;
+            HandleMethod = handleMethod;
+            this.invoker = invoker;
+        }
 
-            var constructors = handlerType.GetConstructors(BindingFlags.Instance | BindingFlags.Public);
-            if (constructors.Length > 1)
-                throw new InvalidOperationException();
-            else if (constructors.Length == 0)
-                throw new InvalidOperationException();
+        internal object Invoke(object handler, object? item, object command, CancellationToken cancellationToken)
+        {
+            return invoker(handler, item, command, cancellationToken);
+        }
 
-            commandMetadata.constructor = constructors[0];
+        internal static CommandMetadata Build(Type handlerType, Type handlerInterface, Type? itemType, Type commandType, Type? resultType)
+        {
+            Type[] methodParamTypes = itemType != null
+                ? [itemType, commandType, typeof(CancellationToken)]
+                : [commandType, typeof(CancellationToken)];
 
-            var constructorParams = commandMetadata.constructor.GetParameters();
-            commandMetadata.constructorParamTypes = new ReadOnlyCollection<Type>(constructorParams.Select(it => it.ParameterType).ToList());
+            var handleMethod = handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, methodParamTypes, null)
+                ?? throw new InvalidOperationException($"Not found \"HandleAsync\" method on command handler interface \"{handlerInterface.AssemblyQualifiedName}\".");
 
-            Type[] methodParamTypes;
-            if (commandMetadata.IsForItem)
-                methodParamTypes = [itemType, commandMetadata.CommandType, typeof(CancellationToken)];
+            var invoker = BuildInvoker(handlerInterface, handleMethod, itemType, commandType);
+
+            return new CommandMetadata(handlerType, itemType, commandType, resultType, handleMethod, invoker);
+        }
+
+        static Func<object, object?, object, CancellationToken, object> BuildInvoker(Type handlerInterface, MethodInfo handleMethod, Type? itemType, Type commandType)
+        {
+            var handlerParam = Expression.Parameter(typeof(object), "handler");
+            var itemParam = Expression.Parameter(typeof(object), "item");
+            var commandParam = Expression.Parameter(typeof(object), "command");
+            var cancellationTokenParam = Expression.Parameter(typeof(CancellationToken), "cancellationToken");
+
+            var instance = Expression.Convert(handlerParam, handlerInterface);
+
+            MethodCallExpression call;
+            if (itemType != null)
+                call = Expression.Call(instance, handleMethod,
+                    Expression.Convert(itemParam, itemType),
+                    Expression.Convert(commandParam, commandType),
+                    cancellationTokenParam);
             else
-                methodParamTypes = [commandMetadata.CommandType, typeof(CancellationToken)];
+                call = Expression.Call(instance, handleMethod,
+                    Expression.Convert(commandParam, commandType),
+                    cancellationTokenParam);
 
-            commandMetadata.handleMethod = handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.IgnoreCase, null, methodParamTypes, null);
-            if (commandMetadata.handleMethod == null)
-                throw new InvalidOperationException();
-
-            return commandMetadata;
+            return Expression.Lambda<Func<object, object?, object, CancellationToken, object>>(
+                Expression.Convert(call, typeof(object)),
+                handlerParam, itemParam, commandParam, cancellationTokenParam).Compile();
         }
     }
 }

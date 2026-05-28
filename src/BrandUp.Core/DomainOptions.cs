@@ -1,4 +1,6 @@
-﻿using BrandUp.Commands;
+using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
+using BrandUp.Commands;
 using BrandUp.Queries;
 
 namespace BrandUp
@@ -15,6 +17,10 @@ namespace BrandUp
         readonly Dictionary<Type, CommandMetadata> commandsWithResults = [];
         readonly Dictionary<Type, CommandMetadata> commandsNotResults = [];
 
+        FrozenDictionary<Type, QueryMetadata>? frozenQueries;
+        FrozenDictionary<Type, CommandMetadata>? frozenCommandsWithResults;
+        FrozenDictionary<Type, CommandMetadata>? frozenCommandsNotResults;
+
         public DomainOptions AddQuery<THandler>()
         {
             var handlerType = typeof(THandler);
@@ -30,6 +36,8 @@ namespace BrandUp
 
                     if (!queries.TryAdd(queryMetadata.QueryType, queryMetadata))
                         throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" already exist.");
+
+                    frozenQueries = null;
 
                     return this;
                 }
@@ -48,9 +56,9 @@ namespace BrandUp
 
                 var genericTypeDefinition = handlerInterface.GetGenericTypeDefinition();
 
-                Type itemType;
+                Type? itemType;
                 Type commandType;
-                Type resultType;
+                Type? resultType;
                 if (genericTypeDefinition == CommandHandlerWithResultDefinitionType)
                 {
                     itemType = null;
@@ -78,12 +86,15 @@ namespace BrandUp
                 else
                     continue;
 
-                var commandMedata = CommandMetadata.Build(handlerType, handlerInterface, itemType, commandType, resultType);
+                var commandMetadata = CommandMetadata.Build(handlerType, handlerInterface, itemType, commandType, resultType);
 
-                if (commandMedata.WithResult && !commandsWithResults.TryAdd(commandMedata.ResultType, commandMedata))
-                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{commandMedata.ResultType.AssemblyQualifiedName}\".");
-                else if (!commandsNotResults.TryAdd(commandMedata.CommandType, commandMedata))
-                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandMedata.CommandType.AssemblyQualifiedName}\".");
+                if (resultType != null && !commandsWithResults.TryAdd(resultType, commandMetadata))
+                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{resultType.AssemblyQualifiedName}\".");
+                else if (!commandsNotResults.TryAdd(commandType, commandMetadata))
+                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandType.AssemblyQualifiedName}\".");
+
+                frozenCommandsWithResults = null;
+                frozenCommandsNotResults = null;
 
                 return this;
             }
@@ -91,17 +102,20 @@ namespace BrandUp
             throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {CommandHandlerWithResultDefinitionType.FullName}.");
         }
 
-        public bool TryGetQueryHandler(Type queryType, out QueryMetadata queryMetadata)
+        public bool TryGetQueryHandler(Type queryType, [MaybeNullWhen(false)] out QueryMetadata queryMetadata)
         {
-            return queries.TryGetValue(queryType, out queryMetadata);
+            frozenQueries ??= queries.ToFrozenDictionary();
+            return frozenQueries.TryGetValue(queryType, out queryMetadata);
         }
-        public bool TryGetHandlerWithResult<TResult>(out CommandMetadata commandMetadata)
+        public bool TryGetHandlerWithResult<TResult>([MaybeNullWhen(false)] out CommandMetadata commandMetadata)
         {
-            return commandsWithResults.TryGetValue(typeof(TResult), out commandMetadata);
+            frozenCommandsWithResults ??= commandsWithResults.ToFrozenDictionary();
+            return frozenCommandsWithResults.TryGetValue(typeof(TResult), out commandMetadata);
         }
-        public bool TryGetHandlerNotResult(Type commandType, out CommandMetadata commandMetadata)
+        public bool TryGetHandlerNotResult(Type commandType, [MaybeNullWhen(false)] out CommandMetadata commandMetadata)
         {
-            return commandsNotResults.TryGetValue(commandType, out commandMetadata);
+            frozenCommandsNotResults ??= commandsNotResults.ToFrozenDictionary();
+            return frozenCommandsNotResults.TryGetValue(commandType, out commandMetadata);
         }
     }
 }
