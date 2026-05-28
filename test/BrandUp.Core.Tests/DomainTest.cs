@@ -615,6 +615,64 @@ namespace BrandUp
         }
 
         [Fact]
+        public async Task SendAsync_DisposesHandler()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            var probe = new Example.Commands.DisposeProbe();
+            serviceCollection.AddSingleton(probe);
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.DisposableCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.SendAsync(
+                new Example.Commands.DisposableCommand(),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
+            Assert.True(probe.Disposed);
+        }
+
+        [Fact]
+        public async Task SendAsync_DisposesAsyncHandler()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            var probe = new Example.Commands.DisposeProbe();
+            serviceCollection.AddSingleton(probe);
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.AsyncDisposableCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.SendAsync(
+                new Example.Commands.AsyncDisposableCommand(),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
+            Assert.True(probe.AsyncDisposed);
+        }
+
+        [Fact]
         public void GetItemProvider_NotRegistered_Throws()
         {
             #region Prepare
