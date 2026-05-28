@@ -64,4 +64,38 @@ namespace BrandUp.Example.Commands
             throw new InvalidOperationException("boom");
         }
     }
+
+    // Second handler for the same command type (CounterCommand) - used to test duplicate registration.
+    public class AnotherCounterCommandHandler : ICommandHandler<CounterCommand, int>
+    {
+        public Task<Result<int>> HandleAsync(CounterCommand command, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Result.Success(0));
+        }
+    }
+
+    // Command declares a result, but its handler does not produce one - used to test the generic/non-generic guard.
+    public class MixedCommand : ICommand<int>
+    {
+    }
+
+    public class MixedCommandHandler : ICommandHandler<MixedCommand>
+    {
+        public Task<Result> HandleAsync(MixedCommand command, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Result.Success());
+        }
+    }
+
+    public class PingCommand : ICommand
+    {
+    }
+
+    public class PingCommandHandler : ICommandHandler<PingCommand>
+    {
+        public Task<Result> HandleAsync(PingCommand command, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Result.Success());
+        }
+    }
 }

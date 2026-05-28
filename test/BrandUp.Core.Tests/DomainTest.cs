@@ -397,5 +397,240 @@ namespace BrandUp
 
             Assert.False(joinUserResult.IsSuccess);
         }
+
+        [Fact]
+        public async Task SendAsync_RunsAllValidators_AggregatesErrors()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddSingleton<Example.Commands.ICounter, Example.Commands.Counter>();
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.CounterCommandHandler>();
+                })
+                .AddValidator<Example.Validation.FailingValidatorA>()
+                .AddValidator<Example.Validation.FailingValidatorB>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.SendAsync(
+                new Example.Commands.CounterCommand(),
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(2, result.CountErrors);
+        }
+
+        [Fact]
+        public async Task SendAsync_NotResult_Success()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.PingCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.SendAsync(
+                new Example.Commands.PingCommand(),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
+        }
+
+        [Fact]
+        public async Task SendAsync_Generic_OnCommandWithoutResult_Throws()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.MixedCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                domain.SendAsync(
+                    new Example.Commands.MixedCommand(),
+                    TestContext.Current.CancellationToken));
+        }
+
+        [Fact]
+        public async Task SendItemAsync_ById_NotFound_ReturnsError()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.VisitUserCommandHandler>();
+                })
+                .AddItemProvider<NullUserProvider>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.SendItemAsync<Guid, User>(Guid.NewGuid(),
+                new Example.Commands.VisitUserCommand(),
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+        }
+
+        [Fact]
+        public async Task SendItemAsync_ById_WithResult_NotFound_ReturnsError()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.RenameUserCommandHandler>();
+                })
+                .AddItemProvider<NullUserProvider>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.SendItemAsync<Guid, User, string>(Guid.NewGuid(),
+                new Example.Commands.RenameUserCommand { NewPhone = "+79231145449" },
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+        }
+
+        [Fact]
+        public async Task SendItemAsync_NotResult_OnCommandWithResult_Throws()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.RenameUserCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                domain.SendItemAsync<Guid, User>(user,
+                    (Commands.IItemCommand<User>)new Example.Commands.RenameUserCommand { NewPhone = "x" },
+                    TestContext.Current.CancellationToken));
+        }
+
+        [Fact]
+        public async Task SendItemAsync_WithResult_OnCommandWithoutResult_Throws()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddCommand<Example.Commands.TouchUserCommandHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var user = new User { Id = Guid.NewGuid(), Phone = "89232229022" };
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                domain.SendItemAsync<Guid, User, string>(user,
+                    new Example.Commands.TouchUserCommand(),
+                    TestContext.Current.CancellationToken));
+        }
+
+        [Fact]
+        public async Task QueryAsync_Invalid_ReturnsError()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddQuery<UserByPhoneQueryHandler>();
+                })
+                .AddValidator<ComponentModelValidator>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.QueryAsync(
+                new UserByPhoneQuery(),
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+        }
+
+        [Fact]
+        public void GetItemProvider_NotRegistered_Throws()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options => { });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            Assert.Throws<InvalidOperationException>(() => domain.GetItemProvider<UserProvider>());
+        }
     }
 }

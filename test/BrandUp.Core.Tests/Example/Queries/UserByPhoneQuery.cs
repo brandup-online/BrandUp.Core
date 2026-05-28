@@ -29,4 +29,13 @@ namespace BrandUp.Example.Queries
             return Task.FromResult<IList<User>>(result);
         }
     }
+
+    // Second handler for the same query type - used to test duplicate registration.
+    public class AnotherUserByPhoneQueryHandler : IQueryHandler<UserByPhoneQuery, User>
+    {
+        public Task<IList<User>> HandleAsync(UserByPhoneQuery query, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IList<User>>(new List<User>());
+        }
+    }
 }
