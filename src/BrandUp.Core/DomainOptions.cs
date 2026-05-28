@@ -14,12 +14,10 @@ namespace BrandUp
         internal readonly static Type ItemCommandHandlerNotResultDefinitionType = typeof(IItemCommandHandler<,>);
 
         readonly Dictionary<Type, QueryMetadata> queries = [];
-        readonly Dictionary<Type, CommandMetadata> commandsWithResults = [];
-        readonly Dictionary<Type, CommandMetadata> commandsNotResults = [];
+        readonly Dictionary<Type, CommandMetadata> commands = [];
 
         FrozenDictionary<Type, QueryMetadata>? frozenQueries;
-        FrozenDictionary<Type, CommandMetadata>? frozenCommandsWithResults;
-        FrozenDictionary<Type, CommandMetadata>? frozenCommandsNotResults;
+        FrozenDictionary<Type, CommandMetadata>? frozenCommands;
 
         public DomainOptions AddQuery<THandler>()
         {
@@ -88,13 +86,10 @@ namespace BrandUp
 
                 var commandMetadata = CommandMetadata.Build(handlerType, handlerInterface, itemType, commandType, resultType);
 
-                if (resultType != null && !commandsWithResults.TryAdd(resultType, commandMetadata))
-                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by result type \"{resultType.AssemblyQualifiedName}\".");
-                else if (!commandsNotResults.TryAdd(commandType, commandMetadata))
+                if (!commands.TryAdd(commandType, commandMetadata))
                     throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandType.AssemblyQualifiedName}\".");
 
-                frozenCommandsWithResults = null;
-                frozenCommandsNotResults = null;
+                frozenCommands = null;
 
                 return this;
             }
@@ -107,15 +102,10 @@ namespace BrandUp
             frozenQueries ??= queries.ToFrozenDictionary();
             return frozenQueries.TryGetValue(queryType, out queryMetadata);
         }
-        public bool TryGetHandlerWithResult<TResult>([MaybeNullWhen(false)] out CommandMetadata commandMetadata)
+        public bool TryGetCommandHandler(Type commandType, [MaybeNullWhen(false)] out CommandMetadata commandMetadata)
         {
-            frozenCommandsWithResults ??= commandsWithResults.ToFrozenDictionary();
-            return frozenCommandsWithResults.TryGetValue(typeof(TResult), out commandMetadata);
-        }
-        public bool TryGetHandlerNotResult(Type commandType, [MaybeNullWhen(false)] out CommandMetadata commandMetadata)
-        {
-            frozenCommandsNotResults ??= commandsNotResults.ToFrozenDictionary();
-            return frozenCommandsNotResults.TryGetValue(commandType, out commandMetadata);
+            frozenCommands ??= commands.ToFrozenDictionary();
+            return frozenCommands.TryGetValue(commandType, out commandMetadata);
         }
     }
 }

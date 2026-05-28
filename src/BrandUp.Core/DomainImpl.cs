@@ -52,7 +52,7 @@ namespace BrandUp
             ArgumentNullException.ThrowIfNull(command);
 
             var commandType = command.GetType();
-            if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata? commandMetadata))
+            if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
             var validationResult = ValidateObj(command, serviceProvider);
@@ -70,8 +70,9 @@ namespace BrandUp
         {
             ArgumentNullException.ThrowIfNull(command);
 
-            if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata? commandMetadata))
-                throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
+            var commandType = command.GetType();
+            if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
+                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -91,7 +92,7 @@ namespace BrandUp
             ArgumentNullException.ThrowIfNull(command);
 
             var commandType = command.GetType();
-            if (!options.TryGetHandlerNotResult(commandType, out CommandMetadata? commandMetadata))
+            if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
                 throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
             var validationResult = ValidateObj(command, serviceProvider);
@@ -111,8 +112,9 @@ namespace BrandUp
             ArgumentNullException.ThrowIfNull(item);
             ArgumentNullException.ThrowIfNull(command);
 
-            if (!options.TryGetHandlerWithResult<TResultData>(out CommandMetadata? commandMetadata))
-                throw new InvalidOperationException($"Not found handler by result \"{typeof(TResultData).AssemblyQualifiedName}\".");
+            var commandType = command.GetType();
+            if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
+                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
 
             var validationResult = ValidateObj(command, serviceProvider);
             if (!validationResult.IsSuccess)
