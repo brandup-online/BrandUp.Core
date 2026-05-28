@@ -19,4 +19,17 @@ namespace BrandUp.Example.Commands
             return Task.FromResult(Result.Success(item.Phone));
         }
     }
+
+    // Item command declares a result, but its handler does not produce one - used to test the item guard.
+    public class TouchUserCommand : IItemCommand<User, string>
+    {
+    }
+
+    public class TouchUserCommandHandler : IItemCommandHandler<User, TouchUserCommand>
+    {
+        public Task<Result> HandleAsync(User item, TouchUserCommand command, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Result.Success());
+        }
+    }
 }
