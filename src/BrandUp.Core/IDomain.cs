@@ -38,6 +38,15 @@ namespace BrandUp
         Task<Result<IList<TRow>>> QueryAsync<TRow>(IQuery<TRow> query, CancellationToken cancellationToken = default);
 
         /// <summary>
+        /// Validates and executes a single-value query, returning the produced value.
+        /// </summary>
+        /// <typeparam name="TModel">Type of the produced value.</typeparam>
+        /// <param name="query">Query to execute.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        /// <returns>A <see cref="Result{TData}"/> with the produced value or errors.</returns>
+        Task<Result<TModel>> QueryAsync<TModel>(ISingleQuery<TModel> query, CancellationToken cancellationToken = default);
+
+        /// <summary>
         /// Validates and executes a command that does not produce result data.
         /// </summary>
         /// <param name="command">Command to execute.</param>

@@ -21,7 +21,7 @@ namespace BrandUp.Queries
         public Type QueryType { get; }
 
         /// <summary>
-        /// Row type returned by the query.
+        /// Row type for list queries, or the returned value type for single-value queries.
         /// </summary>
         public Type ResultType { get; }
 
@@ -30,11 +30,18 @@ namespace BrandUp.Queries
         /// </summary>
         public MethodInfo HandleMethod { get; }
 
-        QueryMetadata(Type handlerType, Type queryType, Type resultType, MethodInfo handleMethod, Func<object, object, CancellationToken, object> invoker)
+        /// <summary>
+        /// <see langword="true"/> when the handler implements <see cref="ISingleQueryHandler{TQuery, TResult}"/>
+        /// (returns a single value); <see langword="false"/> for <see cref="IQueryHandler{TQuery, TRow}"/> (returns a list).
+        /// </summary>
+        public bool IsSingle { get; }
+
+        QueryMetadata(Type handlerType, Type queryType, Type resultType, bool isSingle, MethodInfo handleMethod, Func<object, object, CancellationToken, object> invoker)
         {
             HandlerType = handlerType;
             QueryType = queryType;
             ResultType = resultType;
+            IsSingle = isSingle;
             HandleMethod = handleMethod;
             this.invoker = invoker;
         }
@@ -44,7 +51,7 @@ namespace BrandUp.Queries
             return invoker(handler, query, cancellationToken);
         }
 
-        internal static QueryMetadata Build(Type handlerType, Type handlerInterface)
+        internal static QueryMetadata Build(Type handlerType, Type handlerInterface, bool isSingle)
         {
             var queryType = handlerInterface.GenericTypeArguments[0];
             var resultType = handlerInterface.GenericTypeArguments[1];
@@ -54,7 +61,7 @@ namespace BrandUp.Queries
 
             var invoker = BuildInvoker(handlerInterface, handleMethod, queryType);
 
-            return new QueryMetadata(handlerType, queryType, resultType, handleMethod, invoker);
+            return new QueryMetadata(handlerType, queryType, resultType, isSingle, handleMethod, invoker);
         }
 
         static Func<object, object, CancellationToken, object> BuildInvoker(Type handlerInterface, MethodInfo handleMethod, Type queryType)
