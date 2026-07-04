@@ -207,6 +207,114 @@ namespace BrandUp
         }
 
         [Fact]
+        public async Task QueryAsync_SingleQuery_ReturnsValue()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+            {
+                options.AddQuery<UserCountQueryHandler>();
+            })
+                .AddValidator<ComponentModelValidator>();
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.QueryAsync(
+                new UserCountQuery(),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
+            Assert.Equal(5, result.Data);
+        }
+
+        [Fact]
+        public async Task QueryAsync_SingleQueriesSharingModelType_DispatchByQueryType()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+            {
+                options.AddQuery<UserCountQueryHandler>();
+                options.AddQuery<ActiveUserCountQueryHandler>();
+            });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var total = await domain.QueryAsync(
+                new UserCountQuery(),
+                TestContext.Current.CancellationToken);
+            var active = await domain.QueryAsync(
+                new ActiveUserCountQuery(),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(5, total.Data);
+            Assert.Equal(3, active.Data);
+        }
+
+        [Fact]
+        public async Task QueryAsync_SingleQuery_HandlerReturnsError()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options =>
+            {
+                options.AddQuery<MissingUserQueryHandler>();
+            });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.QueryAsync(
+                new MissingUserQuery(),
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal("not-found", System.Linq.Enumerable.Single(result.Errors).Code);
+        }
+
+        [Fact]
+        public async Task QueryAsync_SingleQuery_HandlerNotRegistered_Throws()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            serviceCollection.AddDomain(options => { });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                domain.QueryAsync(
+                    new UserCountQuery(),
+                    TestContext.Current.CancellationToken));
+        }
+
+        [Fact]
         public async Task QueryAsync_HandlerNotRegistered_Throws()
         {
             #region Prepare

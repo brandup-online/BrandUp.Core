@@ -33,6 +33,8 @@ namespace BrandUp
             var queryType = query.GetType();
             if (!options.TryGetQueryHandler(queryType, out QueryMetadata? queryMetadata))
                 throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
+            if (queryMetadata.IsSingle)
+                throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a single value. Use QueryAsync<TResult>(ISingleQuery<TResult>).");
 
             var validationResult = ValidateObj(query, serviceProvider);
             if (!validationResult.IsSuccess)
@@ -44,6 +46,31 @@ namespace BrandUp
                 var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
 
                 return Result.Success(rows);
+            }
+            finally
+            {
+                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+            }
+        }
+
+        public async Task<Result<TModel>> QueryAsync<TModel>(ISingleQuery<TModel> query, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(query);
+
+            var queryType = query.GetType();
+            if (!options.TryGetQueryHandler(queryType, out QueryMetadata? queryMetadata))
+                throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
+            if (!queryMetadata.IsSingle)
+                throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a list. Use QueryAsync<TRow>(IQuery<TRow>).");
+
+            var validationResult = ValidateObj(query, serviceProvider);
+            if (!validationResult.IsSuccess)
+                return validationResult.AsObjectiveErrors<TModel>();
+
+            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, queryMetadata.HandlerType);
+            try
+            {
+                return await ((Task<Result<TModel>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
             }
             finally
             {

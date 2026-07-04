@@ -12,6 +12,7 @@ namespace BrandUp
     public class DomainOptions
     {
         internal readonly static Type QueryHandlerDefinitionType = typeof(IQueryHandler<,>);
+        internal readonly static Type SingleQueryHandlerDefinitionType = typeof(ISingleQueryHandler<,>);
         internal readonly static Type CommandHandlerWithResultDefinitionType = typeof(ICommandHandler<,>);
         internal readonly static Type CommandHandlerNotResultDefinitionType = typeof(ICommandHandler<>);
         internal readonly static Type ItemCommandHandlerWithResultDefinitionType = typeof(IItemCommandHandler<,,>);
@@ -40,20 +41,27 @@ namespace BrandUp
                 if (!iType.IsGenericType)
                     continue;
 
-                if (QueryHandlerDefinitionType == iType.GetGenericTypeDefinition())
-                {
-                    var queryMetadata = QueryMetadata.Build(handlerType, iType);
+                var genericTypeDefinition = iType.GetGenericTypeDefinition();
 
-                    if (!queries.TryAdd(queryMetadata.QueryType, queryMetadata))
-                        throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" already exist.");
+                bool isSingle;
+                if (genericTypeDefinition == QueryHandlerDefinitionType)
+                    isSingle = false;
+                else if (genericTypeDefinition == SingleQueryHandlerDefinitionType)
+                    isSingle = true;
+                else
+                    continue;
 
-                    frozenQueries = null;
+                var queryMetadata = QueryMetadata.Build(handlerType, iType, isSingle);
 
-                    return this;
-                }
+                if (!queries.TryAdd(queryMetadata.QueryType, queryMetadata))
+                    throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" already exist.");
+
+                frozenQueries = null;
+
+                return this;
             }
 
-            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {QueryHandlerDefinitionType.FullName}.");
+            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {QueryHandlerDefinitionType.FullName} or {SingleQueryHandlerDefinitionType.FullName}.");
         }
         /// <summary>
         /// Registers a command handler (with or without result, and item or non-item).
