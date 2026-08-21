@@ -10,12 +10,12 @@ variables:
   value: 'ubuntu-latest'
 - name: restore-projects
   value: '**/*.csproj'
-- name: test-projects
-  value: '**/*[Tt]ests/*.csproj'
 - name: buildPlatform
   value: 'Any CPU'
 - name: buildConfiguration
   value: 'Release'
+- name: coverage-file
+  value: 'coverage.cobertura.xml'
 - name: envName
   value: 'brandup-core'
 - name: version-major
@@ -68,23 +68,33 @@ stages:
         projects: $(restore-projects)
         arguments: --configuration $(buildConfiguration) /p:Version=$(Build.BuildNumber)
 
-    - task: DotNetCoreCLI@2
+    - script: >
+        dotnet test
+        --configuration $(buildConfiguration)
+        --coverage
+        --coverage-output-format cobertura
+        --coverage-output $(coverage-file)
+        --report-trx
+        --results-directory $(Agent.TempDirectory)
       displayName: 'dotnet test'
-      inputs:
-        command: test
-        projects: $(test-projects)
-        arguments: --configuration $(buildConfiguration) --collect "Code coverage"
-        failTaskOnFailedTests: true
-        publishTestResults: true
-        testRunTitle: "solution tests"
 
     - task: PublishTestResults@2
-      enabled: "false"
-      displayName: 'publish test/coverage results'
+      displayName: 'publish test results'
       condition: succeededOrFailed()
       inputs:
         testRunner: VSTest
         testResultsFiles: '$(Agent.TempDirectory)/**/*.trx'
+        testRunTitle: "solution tests"
+        mergeTestResults: true
+        failTaskOnFailedTests: true
+
+    - task: PublishCodeCoverageResults@2
+      displayName: 'publish coverage results'
+      condition: succeededOrFailed()
+      inputs:
+        summaryFileLocation: '$(Agent.TempDirectory)/$(coverage-file)'
+        pathToSources: $(Build.SourcesDirectory)
+        failIfCoverageEmpty: true
         
     - task: DotNetCoreCLI@2
       displayName: "dotnet pack"
