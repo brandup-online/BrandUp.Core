@@ -96,6 +96,17 @@
         }
 
         /// <summary>
+        /// Creates a failed result from a single categorized error.
+        /// </summary>
+        /// <param name="code">Error code.</param>
+        /// <param name="message">Error message.</param>
+        /// <param name="kind">Semantic category of the error.</param>
+        public static Result Error(string code, string message, ErrorKind kind)
+        {
+            return new Result([new Error(code, message, kind)]);
+        }
+
+        /// <summary>
         /// Creates a failed typed result from a single error.
         /// </summary>
         /// <typeparam name="TData">Type of the data the result would carry on success.</typeparam>
@@ -104,6 +115,18 @@
         public static Result<TData> Error<TData>(string code, string message)
         {
             return new Result<TData>([new Error(code, message)]);
+        }
+
+        /// <summary>
+        /// Creates a failed typed result from a single categorized error.
+        /// </summary>
+        /// <typeparam name="TData">Type of the data the result would carry on success.</typeparam>
+        /// <param name="code">Error code.</param>
+        /// <param name="message">Error message.</param>
+        /// <param name="kind">Semantic category of the error.</param>
+        public static Result<TData> Error<TData>(string code, string message, ErrorKind kind)
+        {
+            return new Result<TData>([new Error(code, message, kind)]);
         }
 
         #endregion
@@ -173,19 +196,37 @@
         /// <inheritdoc/>
         public string Message { get; }
 
+        /// <inheritdoc/>
+        public ErrorKind Kind { get; }
+
         /// <summary>
-        /// Creates an error.
+        /// Creates an error with <see cref="ErrorKind.Unspecified"/>. Kept as a distinct
+        /// constructor (not an optional parameter) for binary compatibility with assemblies
+        /// compiled against earlier versions.
         /// </summary>
         /// <param name="code">Error code; <see langword="null"/> is stored as an empty string.</param>
         /// <param name="message">Error message; required.</param>
         /// <exception cref="ArgumentException"><paramref name="message"/> is null or empty.</exception>
         public Error(string? code, string message)
+            : this(code, message, ErrorKind.Unspecified)
+        {
+        }
+
+        /// <summary>
+        /// Creates a categorized error.
+        /// </summary>
+        /// <param name="code">Error code; <see langword="null"/> is stored as an empty string.</param>
+        /// <param name="message">Error message; required.</param>
+        /// <param name="kind">Semantic category of the error.</param>
+        /// <exception cref="ArgumentException"><paramref name="message"/> is null or empty.</exception>
+        public Error(string? code, string message, ErrorKind kind)
         {
             if (string.IsNullOrEmpty(message))
                 throw new ArgumentException("Error message is required.");
 
             Code = code ?? string.Empty;
             Message = message;
+            Kind = kind;
         }
     }
 
@@ -203,5 +244,11 @@
         /// Human-readable error message.
         /// </summary>
         string Message { get; }
+
+        /// <summary>
+        /// Semantic category of the error; <see cref="ErrorKind.Unspecified"/> unless the
+        /// implementation provides one.
+        /// </summary>
+        ErrorKind Kind => ErrorKind.Unspecified;
     }
 }

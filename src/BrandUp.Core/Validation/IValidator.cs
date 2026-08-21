@@ -30,7 +30,7 @@ namespace BrandUp.Validation
         /// </summary>
         /// <param name="message">Error message.</param>
         /// <param name="memberNames">Related member names; <see langword="null"/> is treated as empty.</param>
-        public CommandValidationError(string message, IEnumerable<string>? memberNames) : base(string.Empty, message)
+        public CommandValidationError(string message, IEnumerable<string>? memberNames) : base(string.Empty, message, ErrorKind.Validation)
         {
             MemberNames = memberNames ?? [];
         }

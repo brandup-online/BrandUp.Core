@@ -1,5 +1,7 @@
-﻿using BrandUp.Events;
+﻿using BrandUp.Behaviors;
+using BrandUp.Events;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace BrandUp.Builder
 {
@@ -28,9 +30,15 @@ namespace BrandUp.Builder
 
             services.AddScoped<IDomain, DomainImpl>();
 
+            // First registered behavior is the outermost: validation runs before any user
+            // behavior. TryAddEnumerable keeps a repeated AddDomain from stacking a second
+            // validation stage.
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IDomainBehavior, ValidationBehavior>());
+
             // Scoped: event handlers are constructed from the publishing scope's service provider.
             services.AddScoped<DomainEventPublisher>();
             services.AddScoped<IDomainEventPublisher>(provider => provider.GetRequiredService<DomainEventPublisher>());
+            services.AddScoped<IDomainEventDispatcher>(provider => provider.GetRequiredService<DomainEventPublisher>());
         }
     }
 

@@ -1,8 +1,9 @@
+using System.Diagnostics;
+using BrandUp.Behaviors;
 using BrandUp.Commands;
 using BrandUp.Events;
 using BrandUp.Items;
 using BrandUp.Queries;
-using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -13,6 +14,7 @@ namespace BrandUp
         readonly DomainOptions options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         readonly DomainEventPublisher eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        IDomainBehavior[]? behaviors;
 
         #region IDomain members
 
@@ -38,21 +40,22 @@ namespace BrandUp
             if (queryMetadata.IsSingle)
                 throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a single value. Use QueryAsync<TResult>(ISingleQuery<TResult>).");
 
-            var validationResult = ValidateObj(query, serviceProvider);
-            if (!validationResult.IsSuccess)
-                return validationResult.AsObjectiveErrors<IList<TRow>>();
+            var context = new DomainBehaviorContext(DomainDispatchKind.Query, query, null, serviceProvider, typeof(Result<IList<TRow>>), static errors => Result.Error<IList<TRow>>(errors));
 
-            var handlerObject = queryMetadata.CreateHandler(serviceProvider);
-            try
+            return await DispatchAsync<Result<IList<TRow>>>(context, async () =>
             {
-                var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
+                var handlerObject = queryMetadata.CreateHandler(serviceProvider);
+                try
+                {
+                    var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
 
-                return Result.Success(rows);
-            }
-            finally
-            {
-                await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-            }
+                    return Result.Success(rows);
+                }
+                finally
+                {
+                    await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+                }
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result<TModel>> QueryAsync<TModel>(ISingleQuery<TModel> query, CancellationToken cancellationToken = default)
@@ -65,19 +68,20 @@ namespace BrandUp
             if (!queryMetadata.IsSingle)
                 throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a list. Use QueryAsync<TRow>(IQuery<TRow>).");
 
-            var validationResult = ValidateObj(query, serviceProvider);
-            if (!validationResult.IsSuccess)
-                return validationResult.AsObjectiveErrors<TModel>();
+            var context = new DomainBehaviorContext(DomainDispatchKind.SingleQuery, query, null, serviceProvider, typeof(Result<TModel>), static errors => Result.Error<TModel>(errors));
 
-            var handlerObject = queryMetadata.CreateHandler(serviceProvider);
-            try
+            return await DispatchAsync<Result<TModel>>(context, async () =>
             {
-                return await ((Task<Result<TModel>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
-            }
-            finally
-            {
-                await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-            }
+                var handlerObject = queryMetadata.CreateHandler(serviceProvider);
+                try
+                {
+                    return await ((Task<Result<TModel>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
+                }
+                finally
+                {
+                    await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+                }
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default)
@@ -90,11 +94,9 @@ namespace BrandUp
             if (commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendAsync<TResult>.");
 
-            var validationResult = ValidateObj(command, serviceProvider);
-            if (!validationResult.IsSuccess)
-                return validationResult;
+            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result), static errors => Result.Error(errors));
 
-            return await ExecuteCommandAsync<Result>(commandMetadata, null, command, cancellationToken).ConfigureAwait(false);
+            return await ExecuteCommandAsync<Result>(commandMetadata, context, null, command, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancellationToken = default)
@@ -107,11 +109,9 @@ namespace BrandUp
             if (!commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendAsync.");
 
-            var validationResult = ValidateObj(command, serviceProvider);
-            if (!validationResult.IsSuccess)
-                return validationResult.AsObjectiveErrors<TResultData>();
+            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors));
 
-            return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, null, command, cancellationToken).ConfigureAwait(false);
+            return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, context, null, command, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
@@ -126,11 +126,9 @@ namespace BrandUp
             if (commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendItemAsync<TId, TItem, TResult>.");
 
-            var validationResult = ValidateObj(command, serviceProvider);
-            if (!validationResult.IsSuccess)
-                return validationResult;
+            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result), static errors => Result.Error(errors));
 
-            return await ExecuteCommandAsync<Result>(commandMetadata, item, command, cancellationToken).ConfigureAwait(false);
+            return await ExecuteCommandAsync<Result>(commandMetadata, context, item, command, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
@@ -145,38 +143,19 @@ namespace BrandUp
             if (!commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendItemAsync<TId, TItem>.");
 
-            var validationResult = ValidateObj(command, serviceProvider);
-            if (!validationResult.IsSuccess)
-                return validationResult.AsObjectiveErrors<TResultData>();
+            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors));
 
-            return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, item, command, cancellationToken).ConfigureAwait(false);
+            return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, context, item, command, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
 
-        static Result ValidateObj(object obj, IServiceProvider serviceProvider)
-        {
-            var errors = new List<CommandValidationError>();
-
-            foreach (var validator in serviceProvider.GetServices<IValidator>())
-                validator.Validate(obj, serviceProvider, errors);
-
-            if (errors.Count > 0)
-                return Result.Error(errors);
-
-            return Result.Success();
-        }
-
-        async Task<TResult> ExecuteCommandAsync<TResult>(CommandMetadata commandMetadata, object? item, object command, CancellationToken cancellationToken)
+        async Task<TResult> ExecuteCommandAsync<TResult>(CommandMetadata commandMetadata, DomainBehaviorContext context, object? item, object command, CancellationToken cancellationToken)
             where TResult : Result
         {
-            var handlerObject = commandMetadata.CreateHandler(serviceProvider);
-
-            // With no deferred handlers registered the command scope is provably inert - skip
-            // its allocations and AsyncLocal writes entirely.
-            var withEventScope = options.HasDeferredEventHandlers;
-            if (!withEventScope)
+            async Task<Result> InvokeHandlerAsync()
             {
+                var handlerObject = commandMetadata.CreateHandler(serviceProvider);
                 try
                 {
                     return await ((Task<TResult>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
@@ -187,31 +166,74 @@ namespace BrandUp
                 }
             }
 
+            // Marks the async flow as inside a command: queries dispatched by the handler see
+            // IsInsideCommand and e.g. bypass caching of possibly-uncommitted state.
+            CommandDispatchAmbient.Enter();
+
+            // With no deferred handlers registered the command scope is provably inert - skip
+            // its allocations and AsyncLocal writes entirely.
+            if (!options.HasDeferredEventHandlers)
+                return await DispatchAsync<TResult>(context, InvokeHandlerAsync, cancellationToken).ConfigureAwait(false);
+
             eventPublisher.BeginCommand();
             var success = false;
             try
             {
-                var result = await ((Task<TResult>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
+                var result = await DispatchAsync<TResult>(context, InvokeHandlerAsync, cancellationToken).ConfigureAwait(false);
                 success = result is { IsSuccess: true };
                 return result;
             }
             finally
             {
-                var disposed = false;
-                try
-                {
-                    await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-                    disposed = true;
-                }
-                finally
-                {
-                    // Runs even when handler dispose throws: an unbalanced command scope would
-                    // otherwise silently break deferred events for the rest of the async flow.
-                    // A throwing dispose surfaces as an exception to the caller, so the deferred
-                    // events are discarded to match what the caller observes.
-                    await eventPublisher.EndCommandAsync(success && disposed).ConfigureAwait(false);
-                }
+                // Runs even when the pipeline throws (including a throwing handler dispose): an
+                // unbalanced command scope would silently break deferred events for the rest of
+                // the async flow. Deferred events are discarded whenever the caller observes
+                // anything but a successful result. The scope closes after the whole pipeline,
+                // so a transaction behavior commits before deferred handlers flush.
+                await eventPublisher.EndCommandAsync(success).ConfigureAwait(false);
             }
+        }
+
+        async Task<TResult> DispatchAsync<TResult>(DomainBehaviorContext context, DomainBehaviorDelegate handlerInvoke, CancellationToken cancellationToken)
+            where TResult : Result
+        {
+            using var activity = DomainDiagnostics.StartDispatch(context);
+            var startTimestamp = Stopwatch.GetTimestamp();
+
+            // The behavior set is fixed for the scope's lifetime - resolve once per DomainImpl.
+            var pipeline = behaviors ??= [.. serviceProvider.GetServices<IDomainBehavior>()];
+
+            // First registered behavior is the outermost; index-walking avoids rebuilding a
+            // delegate chain per dispatch.
+            Task<Result> InvokePipelineAsync(int index)
+            {
+                if (index >= pipeline.Length)
+                    return handlerInvoke();
+
+                var behavior = pipeline[index];
+                return behavior.InvokeAsync(context, () => InvokePipelineAsync(index + 1), cancellationToken);
+            }
+
+            Result result;
+            try
+            {
+                result = await InvokePipelineAsync(0).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                DomainDiagnostics.EndDispatch(activity, context, startTimestamp, exception: exception);
+                throw;
+            }
+
+            if (result is not TResult typedResult)
+            {
+                var exception = new InvalidOperationException($"Dispatch of \"{context.Request.GetType().FullName}\" produced \"{result?.GetType().FullName ?? "null"}\" instead of \"{typeof(TResult).FullName}\". A behavior must return the result of next() or a result created via {nameof(DomainBehaviorContext)}.{nameof(DomainBehaviorContext.CreateError)}.");
+                DomainDiagnostics.EndDispatch(activity, context, startTimestamp, exception: exception);
+                throw exception;
+            }
+
+            DomainDiagnostics.EndDispatch(activity, context, startTimestamp, result);
+            return typedResult;
         }
     }
 }

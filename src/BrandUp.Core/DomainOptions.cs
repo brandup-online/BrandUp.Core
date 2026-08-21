@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using BrandUp.Commands;
 using BrandUp.Events;
 using BrandUp.Queries;
@@ -42,6 +43,41 @@ namespace BrandUp
         internal bool HasDeferredEventHandlers { get; private set; }
 
         /// <summary>
+        /// <see langword="true"/> when deferred events are routed through the registered
+        /// <see cref="Events.IEventOutbox"/>. Enabled explicitly via
+        /// <see cref="DomainBuilderExtensions.AddEventOutbox(Builder.IDomainBuilder)"/> — merely
+        /// registering an outbox implementation does not reroute events.
+        /// </summary>
+        internal bool UseEventOutbox { get; set; }
+
+        // Single source of handler-interface classification, shared by the explicit Add methods
+        // and by AddHandlersFrom - so a new handler interface cannot be registered by one path
+        // and silently skipped by the scan.
+        internal static bool IsQueryHandlerInterface(Type handlerInterface)
+        {
+            if (!handlerInterface.IsGenericType)
+                return false;
+
+            var definition = handlerInterface.GetGenericTypeDefinition();
+            return definition == QueryHandlerDefinitionType || definition == SingleQueryHandlerDefinitionType;
+        }
+
+        internal static bool IsCommandHandlerInterface(Type handlerInterface)
+        {
+            if (!handlerInterface.IsGenericType)
+                return false;
+
+            var definition = handlerInterface.GetGenericTypeDefinition();
+            return definition == CommandHandlerWithResultDefinitionType || definition == CommandHandlerNotResultDefinitionType
+                || definition == ItemCommandHandlerWithResultDefinitionType || definition == ItemCommandHandlerNotResultDefinitionType;
+        }
+
+        internal static bool IsEventHandlerInterface(Type handlerInterface)
+        {
+            return handlerInterface.IsGenericType && handlerInterface.GetGenericTypeDefinition() == EventHandlerDefinitionType;
+        }
+
+        /// <summary>
         /// Registers a query handler.
         /// </summary>
         /// <typeparam name="THandler">A type implementing <see cref="IQueryHandler{TQuery, TRow}"/>.</typeparam>
@@ -51,7 +87,17 @@ namespace BrandUp
         /// </exception>
         public DomainOptions AddQuery<THandler>()
         {
-            var handlerType = typeof(THandler);
+            return AddQuery(typeof(THandler));
+        }
+
+        /// <summary>
+        /// Registers a query handler by type (see <see cref="AddQuery{THandler}"/>).
+        /// </summary>
+        /// <param name="handlerType">A type implementing <see cref="IQueryHandler{TQuery, TRow}"/> or <see cref="ISingleQueryHandler{TQuery, TModel}"/>.</param>
+        /// <returns>This instance, for chaining.</returns>
+        public DomainOptions AddQuery(Type handlerType)
+        {
+            ArgumentNullException.ThrowIfNull(handlerType);
 
             foreach (var iType in handlerType.GetInterfaces())
             {
@@ -94,7 +140,17 @@ namespace BrandUp
         /// </exception>
         public DomainOptions AddCommand<THandler>()
         {
-            var handlerType = typeof(THandler);
+            return AddCommand(typeof(THandler));
+        }
+
+        /// <summary>
+        /// Registers a command handler by type (see <see cref="AddCommand{THandler}"/>).
+        /// </summary>
+        /// <param name="handlerType">A type implementing one of the command handler interfaces.</param>
+        /// <returns>This instance, for chaining.</returns>
+        public DomainOptions AddCommand(Type handlerType)
+        {
+            ArgumentNullException.ThrowIfNull(handlerType);
 
             foreach (var handlerInterface in handlerType.GetInterfaces())
             {
@@ -160,7 +216,18 @@ namespace BrandUp
         /// </exception>
         public DomainOptions AddEvent<THandler>()
         {
-            var handlerType = typeof(THandler);
+            return AddEvent(typeof(THandler));
+        }
+
+        /// <summary>
+        /// Registers an event handler by type (see <see cref="AddEvent{THandler}"/>).
+        /// </summary>
+        /// <param name="handlerType">A type implementing <see cref="IDomainEventHandler{TEvent}"/> for one or more event types.</param>
+        /// <returns>This instance, for chaining.</returns>
+        public DomainOptions AddEvent(Type handlerType)
+        {
+            ArgumentNullException.ThrowIfNull(handlerType);
+
             var handlerInterfaces = handlerType.GetInterfaces();
 
             // Validate and build first, mutate after: a duplicate must not leave the registry
@@ -196,6 +263,49 @@ namespace BrandUp
             }
 
             frozenEvents = null;
+
+            return this;
+        }
+
+        /// <summary>
+        /// Registers every query, command and event handler found in the assembly: non-abstract,
+        /// non-generic classes implementing at least one handler interface. Removes the
+        /// "wrote a handler, forgot to register it" failure mode. A handler already registered
+        /// (manually or by a previous scan) causes the same duplicate-registration exception as
+        /// the explicit Add methods.
+        /// </summary>
+        /// <param name="assembly">Assembly to scan.</param>
+        /// <param name="typeFilter">Optional filter; a type it rejects is skipped.</param>
+        /// <returns>This instance, for chaining.</returns>
+        public DomainOptions AddHandlersFrom(Assembly assembly, Func<Type, bool>? typeFilter = null)
+        {
+            ArgumentNullException.ThrowIfNull(assembly);
+
+            foreach (var type in assembly.GetTypes())
+            {
+                if (!type.IsClass || type.IsAbstract || type.ContainsGenericParameters)
+                    continue;
+                if (typeFilter != null && !typeFilter(type))
+                    continue;
+
+                bool isQueryHandler = false, isCommandHandler = false, isEventHandler = false;
+                foreach (var handlerInterface in type.GetInterfaces())
+                {
+                    if (IsQueryHandlerInterface(handlerInterface))
+                        isQueryHandler = true;
+                    else if (IsCommandHandlerInterface(handlerInterface))
+                        isCommandHandler = true;
+                    else if (IsEventHandlerInterface(handlerInterface))
+                        isEventHandler = true;
+                }
+
+                if (isQueryHandler)
+                    AddQuery(type);
+                if (isCommandHandler)
+                    AddCommand(type);
+                if (isEventHandler)
+                    AddEvent(type);
+            }
 
             return this;
         }
