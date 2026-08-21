@@ -74,7 +74,7 @@ namespace BrandUp.Behaviors
             Services = services ?? throw new ArgumentNullException(nameof(services));
             ResultType = resultType ?? throw new ArgumentNullException(nameof(resultType));
             this.errorFactory = errorFactory ?? throw new ArgumentNullException(nameof(errorFactory));
-            IsInsideCommand = CommandDispatchAmbient.IsActive;
+            IsInsideCommand = CommandDispatchScope.Current != null;
         }
 
         /// <summary>

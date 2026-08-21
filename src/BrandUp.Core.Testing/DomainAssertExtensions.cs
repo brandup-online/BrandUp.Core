@@ -172,6 +172,59 @@ namespace BrandUp.Testing
         }
 
         /// <summary>
+        /// Dispatches the command and asserts it failed with the cataloged error.
+        /// </summary>
+        /// <param name="domain">Domain instance.</param>
+        /// <param name="command">Command to execute.</param>
+        /// <param name="descriptor">Expected error descriptor.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        /// <returns>The matched error.</returns>
+        /// <exception cref="DomainAssertException">The command succeeded, or no error matched.</exception>
+        public static Task<IError> AssertSendErrorAsync(this IDomain domain, ICommand command, ErrorDescriptor descriptor, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return domain.AssertSendErrorAsync(command, descriptor.Code, descriptor.Kind, cancellationToken);
+        }
+
+        /// <summary>
+        /// Dispatches the command with result data and asserts it failed with the cataloged error.
+        /// </summary>
+        /// <typeparam name="TResult">Type of the result data the command would produce.</typeparam>
+        /// <param name="domain">Domain instance.</param>
+        /// <param name="command">Command to execute.</param>
+        /// <param name="descriptor">Expected error descriptor.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        /// <returns>The matched error.</returns>
+        /// <exception cref="DomainAssertException">The command succeeded, or no error matched.</exception>
+        public static Task<IError> AssertSendErrorAsync<TResult>(this IDomain domain, ICommand<TResult> command, ErrorDescriptor descriptor, CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return domain.AssertSendErrorAsync(command, descriptor.Code, descriptor.Kind, cancellationToken);
+        }
+
+        /// <summary>
+        /// Dispatches the item command and asserts it failed with the cataloged error.
+        /// </summary>
+        /// <typeparam name="TId">Type of the item identifier.</typeparam>
+        /// <typeparam name="TItem">Type of the item.</typeparam>
+        /// <param name="domain">Domain instance.</param>
+        /// <param name="item">Target item.</param>
+        /// <param name="command">Command to execute.</param>
+        /// <param name="descriptor">Expected error descriptor.</param>
+        /// <param name="cancellationToken">Token to cancel the operation.</param>
+        /// <returns>The matched error.</returns>
+        /// <exception cref="DomainAssertException">The command succeeded, or no error matched.</exception>
+        public static Task<IError> AssertSendItemErrorAsync<TId, TItem>(this IDomain domain, IItem<TId> item, IItemCommand<TItem> command, ErrorDescriptor descriptor, CancellationToken cancellationToken = default)
+            where TItem : class, IItem<TId>
+        {
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return domain.AssertSendItemErrorAsync(item, command, descriptor.Code, descriptor.Kind, cancellationToken);
+        }
+
+        /// <summary>
         /// Dispatches the list query, asserts it succeeded, optionally checks the rows and returns them.
         /// </summary>
         /// <typeparam name="TRow">Type of a single returned row.</typeparam>

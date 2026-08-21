@@ -5,7 +5,10 @@ namespace BrandUp.Testing
     /// <summary>
     /// Fake <see cref="IEventOutbox"/>: an in-memory FIFO queue of enqueued events with an
     /// explicit delivery step, letting a test assert what was enqueued and control when (and
-    /// whether) delivery happens.
+    /// whether) delivery happens. Unlike a real transaction-sharing store, the fake is
+    /// non-transactional: events enqueued by a command that later fails stay in the queue —
+    /// pair assertions with <see cref="TestTransactionFactory.Operations"/> or call
+    /// <see cref="Clear"/> between cases when that matters.
     /// </summary>
     public class TestEventOutbox : IEventOutbox
     {
@@ -59,9 +62,13 @@ namespace BrandUp.Testing
 
                 await eventDispatcher.DispatchDeferredAsync(next, cancellationToken).ConfigureAwait(false);
 
-                // Enqueues only append, so the delivered event is still at the head.
+                // Enqueues only append, so the delivered event is normally still at the head;
+                // a concurrent Clear() may have emptied the queue mid-delivery.
                 lock (enqueued)
-                    enqueued.RemoveAt(0);
+                {
+                    if (enqueued.Count > 0 && ReferenceEquals(enqueued[0], next))
+                        enqueued.RemoveAt(0);
+                }
                 delivered++;
             }
 

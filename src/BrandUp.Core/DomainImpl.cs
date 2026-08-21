@@ -166,17 +166,29 @@ namespace BrandUp
                 }
             }
 
-            // Marks the async flow as inside a command: queries dispatched by the handler see
-            // IsInsideCommand and e.g. bypass caching of possibly-uncommitted state.
-            CommandDispatchAmbient.Enter();
+            // Marks the async flow as inside a command (queries dispatched by the handler
+            // bypass caching of possibly-uncommitted state) and collects work deferred until the
+            // outermost command completes - e.g. cache invalidations, which must run after the
+            // transaction commit regardless of behavior order.
+            var dispatchScope = CommandDispatchScope.Begin();
+            var success = false;
 
-            // With no deferred handlers registered the command scope is provably inert - skip
-            // its allocations and AsyncLocal writes entirely.
+            // With no deferred handlers registered the event scope is provably inert - skip it.
             if (!options.HasDeferredEventHandlers)
-                return await DispatchAsync<TResult>(context, InvokeHandlerAsync, cancellationToken).ConfigureAwait(false);
+            {
+                try
+                {
+                    var result = await DispatchAsync<TResult>(context, InvokeHandlerAsync, cancellationToken).ConfigureAwait(false);
+                    success = result is { IsSuccess: true };
+                    return result;
+                }
+                finally
+                {
+                    await dispatchScope.CompleteAsync(success).ConfigureAwait(false);
+                }
+            }
 
             eventPublisher.BeginCommand();
-            var success = false;
             try
             {
                 var result = await DispatchAsync<TResult>(context, InvokeHandlerAsync, cancellationToken).ConfigureAwait(false);
@@ -185,12 +197,20 @@ namespace BrandUp
             }
             finally
             {
-                // Runs even when the pipeline throws (including a throwing handler dispose): an
-                // unbalanced command scope would silently break deferred events for the rest of
-                // the async flow. Deferred events are discarded whenever the caller observes
-                // anything but a successful result. The scope closes after the whole pipeline,
-                // so a transaction behavior commits before deferred handlers flush.
-                await eventPublisher.EndCommandAsync(success).ConfigureAwait(false);
+                // Both run even when the pipeline throws (including a throwing handler dispose):
+                // an unbalanced scope would silently break deferral for the rest of the async
+                // flow. Everything deferred is discarded whenever the caller observes anything
+                // but a successful result. The scopes close after the whole pipeline, so a
+                // transaction behavior commits first; completion actions (cache invalidations)
+                // run before deferred event handlers, which may re-read the invalidated keys.
+                try
+                {
+                    await dispatchScope.CompleteAsync(success).ConfigureAwait(false);
+                }
+                finally
+                {
+                    await eventPublisher.EndCommandAsync(success).ConfigureAwait(false);
+                }
             }
         }
 
@@ -203,8 +223,9 @@ namespace BrandUp
             // The behavior set is fixed for the scope's lifetime - resolve once per DomainImpl.
             var pipeline = behaviors ??= [.. serviceProvider.GetServices<IDomainBehavior>()];
 
-            // First registered behavior is the outermost; index-walking avoids rebuilding a
-            // delegate chain per dispatch.
+            // First registered behavior is the outermost; index-walking shares one state
+            // capture per dispatch instead of rebuilding a nested delegate chain (each step's
+            // `next` delegate is still created lazily as the pipeline advances).
             Task<Result> InvokePipelineAsync(int index)
             {
                 if (index >= pipeline.Length)

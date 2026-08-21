@@ -81,7 +81,11 @@ namespace BrandUp
         /// <summary>
         /// Enables caching of queries declaring <see cref="ICachedQuery"/>, backed by the
         /// in-process <see cref="MemoryQueryCache"/> unless an <see cref="IQueryCache"/> is
-        /// already registered (see <see cref="QueryCacheBehavior"/>).
+        /// already registered (see <see cref="QueryCacheBehavior"/>). The behavior takes the
+        /// registration-order position like any other; a cache hit short-circuits behaviors
+        /// registered after it, so call this after authorization-like behaviors. Invalidation
+        /// runs at the completion of the outermost command (after the transaction commit)
+        /// regardless of order.
         /// </summary>
         /// <param name="builder">Domain builder.</param>
         /// <returns>The same builder, for chaining.</returns>
@@ -90,9 +94,8 @@ namespace BrandUp
             ArgumentNullException.ThrowIfNull(builder);
 
             builder.Services.TryAddSingleton<IQueryCache, MemoryQueryCache>();
-            AddQueryCacheBehavior(builder.Services);
 
-            return builder;
+            return builder.AddBehavior<QueryCacheBehavior>();
         }
 
         /// <summary>
@@ -108,9 +111,8 @@ namespace BrandUp
             ArgumentNullException.ThrowIfNull(builder);
 
             builder.Services.AddSingleton<IQueryCache, TCache>();
-            AddQueryCacheBehavior(builder.Services);
 
-            return builder;
+            return builder.AddBehavior<QueryCacheBehavior>();
         }
 
         /// <summary>
@@ -146,25 +148,38 @@ namespace BrandUp
             return builder;
         }
 
-        static void AddQueryCacheBehavior(IServiceCollection services)
+        /// <summary>
+        /// Registers the <see cref="ErrorCatalog"/> singleton and configures it. Repeated calls
+        /// configure the same catalog, so duplicate codes fail at registration time. A catalog
+        /// registered any other way (by type or factory) is rejected loudly instead of silently
+        /// splitting the codes across two instances.
+        /// </summary>
+        /// <param name="builder">Domain builder.</param>
+        /// <param name="configure">Populates the catalog (Add/AddFrom/AddFromAssembly).</param>
+        /// <returns>The same builder, for chaining.</returns>
+        /// <exception cref="InvalidOperationException"><see cref="ErrorCatalog"/> is registered without an instance.</exception>
+        public static IDomainBuilder AddErrorCatalog(this IDomainBuilder builder, Action<ErrorCatalog> configure)
         {
-            if (services.Any(descriptor => descriptor.ServiceType == typeof(IDomainBehavior) && descriptor.ImplementationType == typeof(QueryCacheBehavior)))
-                return;
+            ArgumentNullException.ThrowIfNull(builder);
+            ArgumentNullException.ThrowIfNull(configure);
 
-            var cacheDescriptor = ServiceDescriptor.Scoped<IDomainBehavior, QueryCacheBehavior>();
+            var registration = builder.Services.FirstOrDefault(descriptor => descriptor.ServiceType == typeof(ErrorCatalog) && !descriptor.IsKeyedService);
 
-            // Cache invalidation must run after the transaction commit: keep the cache behavior
-            // outside TransactionBehavior regardless of the registration order the caller used.
-            for (var i = 0; i < services.Count; i++)
+            ErrorCatalog catalog;
+            if (registration == null)
             {
-                if (services[i].ServiceType == typeof(IDomainBehavior) && services[i].ImplementationType == typeof(TransactionBehavior))
-                {
-                    services.Insert(i, cacheDescriptor);
-                    return;
-                }
+                catalog = new ErrorCatalog();
+                builder.Services.AddSingleton(catalog);
+            }
+            else
+            {
+                catalog = registration.ImplementationInstance as ErrorCatalog
+                    ?? throw new InvalidOperationException($"{nameof(ErrorCatalog)} is already registered by type or factory; populate that catalog instead of calling {nameof(AddErrorCatalog)}.");
             }
 
-            services.Add(cacheDescriptor);
+            configure(catalog);
+
+            return builder;
         }
 
         /// <summary>

@@ -7,6 +7,12 @@ namespace BrandUp.Behaviors
     /// <c>next</c> — use <see cref="DomainBehaviorContext.CreateError(System.Collections.Generic.IList{IError})"/>
     /// to produce a result of the shape the dispatch expects. Register via
     /// <see cref="DomainBuilderExtensions.AddBehavior{TBehavior}"/>.
+    /// <para>
+    /// A behavior that invokes <c>next</c> more than once (retry) runs every attempt inside one
+    /// command scope: deferred events published by a failed attempt stay queued and flush when a
+    /// later attempt succeeds. Retry outside the domain dispatch when deferred events or
+    /// transactions are involved.
+    /// </para>
     /// </summary>
     public interface IDomainBehavior
     {

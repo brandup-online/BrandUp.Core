@@ -5,9 +5,11 @@ namespace BrandUp.Caching
     /// <summary>
     /// Serves queries declaring <see cref="ICachedQuery"/> from <see cref="IQueryCache"/>, stores
     /// successful results, and removes the keys declared by <see cref="ICacheInvalidating"/>
-    /// commands after they succeed. Only successful results are cached; queries running inside a
-    /// command are bypassed (they may observe uncommitted state). The cached <see cref="Result"/>
-    /// instance is shared between callers - treat its data as read-only.
+    /// commands after the outermost command completes (after the transaction commit). Only
+    /// successful results are cached; queries running inside a command are bypassed (they may
+    /// observe uncommitted state). The cached <see cref="Result"/> instance is shared between
+    /// callers - treat its data as read-only. A cache hit short-circuits behaviors registered
+    /// after this one, so register caching after authorization-like behaviors.
     /// </summary>
     public class QueryCacheBehavior(IQueryCache queryCache) : IDomainBehavior
     {
@@ -44,13 +46,28 @@ namespace BrandUp.Caching
             {
                 var result = await next().ConfigureAwait(false);
 
-                // AddQueryCaching keeps this behavior outside TransactionBehavior, so for the
-                // command's own transaction this runs after the commit. Post-success work is not
-                // cancellable on the caller's behalf.
                 if (result is { IsSuccess: true })
                 {
-                    foreach (var cacheKey in invalidating.InvalidateCacheKeys)
-                        await queryCache.RemoveAsync(cacheKey, CancellationToken.None).ConfigureAwait(false);
+                    var cacheKeys = invalidating.InvalidateCacheKeys;
+
+                    // Deferred to the completion of the outermost command - after the transaction
+                    // commit, whatever position this behavior has in the pipeline - and discarded
+                    // when an enclosing command fails. Post-success work is not cancellable on
+                    // the caller's behalf.
+                    var dispatchScope = CommandDispatchScope.Current;
+                    if (dispatchScope != null)
+                    {
+                        dispatchScope.OnCompleted(async () =>
+                        {
+                            foreach (var cacheKey in cacheKeys)
+                                await queryCache.RemoveAsync(cacheKey, CancellationToken.None).ConfigureAwait(false);
+                        });
+                    }
+                    else
+                    {
+                        foreach (var cacheKey in cacheKeys)
+                            await queryCache.RemoveAsync(cacheKey, CancellationToken.None).ConfigureAwait(false);
+                    }
                 }
 
                 return result;

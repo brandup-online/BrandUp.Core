@@ -72,6 +72,21 @@ namespace BrandUp.Testing
             throw DomainAssert.Failure($"Expected {result.GetType().Name} to fail with {Expectation(code, kind)}, but its errors are: {ErrorText(result)}.");
         }
 
+        /// <summary>
+        /// Asserts the result is failed with the cataloged error: some error matches the
+        /// descriptor's code and kind. Refactoring-safe alternative to string codes.
+        /// </summary>
+        /// <param name="result">Result to check.</param>
+        /// <param name="descriptor">Expected error descriptor.</param>
+        /// <returns>The matched error.</returns>
+        /// <exception cref="DomainAssertException">The result is successful, or no error matches.</exception>
+        public static IError AssertError(this Result result, ErrorDescriptor descriptor)
+        {
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return result.AssertError(descriptor.Code, descriptor.Kind);
+        }
+
         internal static string ErrorText(Result result)
         {
             var text = new StringBuilder();

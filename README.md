@@ -112,7 +112,7 @@ Both kinds are registered the same way: `options.AddQuery<THandler>()`.
 
 ### Query caching
 
-A query declaring `ICachedQuery` (a cache key and an optional duration) is served from `IQueryCache` when `AddQueryCaching()` is enabled; only successful results are cached, and the cached `Result` instance is shared between callers — treat its data as read-only. A command declaring `ICacheInvalidating` removes the listed keys after it succeeds — always after the command's transaction commit: `AddQueryCaching` keeps the cache behavior outside `TransactionBehavior` regardless of registration order. A cached query dispatched from inside a command bypasses the cache entirely (it may observe uncommitted state), and a cache-key collision between different query shapes is treated as a miss. The default cache is the in-process `MemoryQueryCache` (backed by `Microsoft.Extensions.Caching.Memory` with expiration-driven eviction); register a custom `IQueryCache` for distributed scenarios.
+A query declaring `ICachedQuery` (a cache key and an optional duration) is served from `IQueryCache` when `AddQueryCaching()` is enabled; only successful results are cached, and the cached `Result` instance is shared between callers — treat its data as read-only. A command declaring `ICacheInvalidating` removes the listed keys after the **outermost** command completes — after the transaction commit, wherever the behavior sits in the pipeline; a nested command's invalidation waits for the outer command and is discarded when it fails. A cached query dispatched from inside a command bypasses the cache entirely (it may observe uncommitted state), and a cache-key collision between different query shapes is treated as a miss. The behavior takes its registration-order position like any other, and a cache hit short-circuits behaviors registered after it — call `AddQueryCaching()` after authorization-like behaviors. The default cache is the in-process `MemoryQueryCache` (backed by `Microsoft.Extensions.Caching.Memory` with expiration-driven eviction); register a custom `IQueryCache` for distributed scenarios.
 
 ```csharp
 public class UserCountQuery : ISingleQuery<int>, ICachedQuery
@@ -360,6 +360,48 @@ ProblemDetails problem = result.ToProblemDetails();
 ```
 
 Failed results become `ProblemDetails` with an `errors` extension listing code/message pairs; validation errors also carry their member names.
+
+## Error catalog and localization
+
+Domain errors are declared once, as descriptors in per-domain catalog classes — a stable code (the API contract), a semantic kind, an invariant developer-facing template and a description for integrators:
+
+```csharp
+public static class OrderErrors
+{
+    public static readonly ErrorDescriptor NotFound = new(
+        "order-not-found", ErrorKind.NotFound,
+        "Order {0} not found.",
+        "The order id does not exist or belongs to another project.");
+}
+
+// in a handler: code, kind and message come from one place
+return Result.Error(OrderErrors.NotFound, orderId);
+
+services.AddDomain(options => { /* ... */ })
+    .AddErrorCatalog(catalog => catalog.AddFromAssembly(typeof(OrderErrors).Assembly));
+```
+
+The catalog validates code uniqueness at registration and feeds documentation: `app.MapErrorCatalog("/api/errors")` publishes every code with its kind, HTTP status, localized message and description.
+
+Localization happens at the transport layer, not at error creation: the domain carries the code, the invariant message and the format arguments (`IError.Arguments`), and the edge resolves a localized template per request culture. Cached results, stored outbox events and logs stay culture-free.
+
+```csharp
+// resx files keyed by error code: DomainErrors.ru.resx -> "order-not-found" = "Заказ {0} не найден."
+services.AddErrorLocalization<DomainErrors>();
+app.UseRequestLocalization(/* ... */);
+
+// mapping overloads resolve messages by the request culture, falling back to the invariant text
+return result.ToHttpResult(errorLocalizer);
+```
+
+Templates resolve along the culture parent chain (`ru-RU` → `ru`) but never to the neutral resources — a code translated only in the default language reports as untranslated and falls back to the invariant message, and a malformed translated template falls back too instead of failing the response. A custom `IErrorLocalizer` replaces the resx-backed one for other template sources. The Testing package turns missing or broken translations into a failing test:
+
+```csharp
+ErrorCatalogAssert.AssertAllLocalized(catalog, errorLocalizer, "ru", "en");
+result.AssertError(OrderErrors.NotFound); // refactoring-safe error asserts
+```
+
+Validation messages are a separate, already-solved path: DataAnnotations attributes localize themselves (resource-based error messages) at validation time with the request culture.
 
 ## Testing
 

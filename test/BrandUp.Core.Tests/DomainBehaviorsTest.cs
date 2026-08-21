@@ -305,6 +305,81 @@ namespace BrandUp
         }
 
         [Fact]
+        public async Task QueryCache_RespectsRegistrationOrder()
+        {
+            // Transactions, then a user behavior, then caching: the cache must NOT be hoisted
+            // above the user behavior - registration order is the contract.
+            using var serviceProvider = BuildServices(
+                options => options.AddQuery<CachedCountQueryHandler>(),
+                builder => builder
+                    .AddTransactions<FakeTransactionFactory>()
+                    .AddBehavior<FirstLoggingBehavior>()
+                    .AddQueryCaching<RecordingQueryCache>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var log = scope.ServiceProvider.GetRequiredService<EventLog>();
+
+            await domain.QueryAsync(new CachedCountQuery(), TestContext.Current.CancellationToken);
+
+            var entries = log.Entries.ToList();
+            var behaviorIndex = entries.IndexOf("first:before");
+            var cacheIndex = entries.IndexOf("cache-get:user-count");
+            Assert.True(behaviorIndex >= 0 && cacheIndex > behaviorIndex,
+                $"Expected the user behavior to run before the cache, but the log is: {string.Join(", ", entries)}");
+        }
+
+        [Fact]
+        public async Task QueryCache_NestedInvalidation_AfterOuterCommit()
+        {
+            using var serviceProvider = BuildServices(
+                options =>
+                {
+                    options.AddCommand<InvalidateCountCommandHandler>();
+                    options.AddCommand<NestingInvalidateCommandHandler>();
+                },
+                builder => builder
+                    .AddTransactions<FakeTransactionFactory>()
+                    .AddQueryCaching<RecordingQueryCache>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var log = scope.ServiceProvider.GetRequiredService<EventLog>();
+
+            var result = await domain.SendAsync(new NestingInvalidateCommand(), TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
+            var entries = log.Entries.ToList();
+            var commitIndex = entries.IndexOf("tx-commit");
+            var removeIndex = entries.IndexOf("cache-remove:user-count");
+            Assert.True(commitIndex >= 0 && removeIndex > commitIndex,
+                $"Expected the nested command's invalidation after the outer commit, but the log is: {string.Join(", ", entries)}");
+        }
+
+        [Fact]
+        public async Task QueryCache_ServedInDeferredHandler_AfterCommand()
+        {
+            using var serviceProvider = BuildServices(
+                options =>
+                {
+                    options.AddQuery<CachedCountQueryHandler>();
+                    options.AddCommand<PublishingCommandHandler>();
+                    options.AddEvent<QueryingDeferredHandler>();
+                },
+                builder => builder.AddQueryCaching());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var log = scope.ServiceProvider.GetRequiredService<EventLog>();
+
+            // Prime the cache, then run a command whose deferred handler re-queries: the handler
+            // runs after the command completed, so it must be served from the cache.
+            await domain.QueryAsync(new CachedCountQuery(), TestContext.Current.CancellationToken);
+            var result = await domain.SendAsync(new PublishingCommand { Phone = "+1" }, TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
+            Assert.Contains("deferred-query:42", log.Entries);
+            Assert.Equal(1, log.Entries.Count(entry => entry == "cached-query-exec"));
+        }
+
+        [Fact]
         public async Task AddHandlersFrom_ScansAssembly()
         {
             using var serviceProvider = BuildServices(options => options.AddHandlersFrom(

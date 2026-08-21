@@ -129,6 +129,36 @@
             return new Result<TData>([new Error(code, message, kind)]);
         }
 
+        /// <summary>
+        /// Creates a failed result from a cataloged error descriptor: the code and kind come from
+        /// the descriptor, the message from its invariant template and the arguments.
+        /// </summary>
+        /// <param name="descriptor">Descriptor of the error (see <see cref="ErrorCatalog"/>).</param>
+        /// <param name="arguments">Format arguments of the message template. A single array
+        /// argument binds as the whole params array — cast it to <see cref="object"/> to pass an
+        /// array as one argument.</param>
+        public static Result Error(ErrorDescriptor descriptor, params object?[] arguments)
+        {
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return new Result([descriptor.CreateError(arguments)]);
+        }
+
+        /// <summary>
+        /// Creates a failed typed result from a cataloged error descriptor.
+        /// </summary>
+        /// <typeparam name="TData">Type of the data the result would carry on success.</typeparam>
+        /// <param name="descriptor">Descriptor of the error (see <see cref="ErrorCatalog"/>).</param>
+        /// <param name="arguments">Format arguments of the message template. A single array
+        /// argument binds as the whole params array — cast it to <see cref="object"/> to pass an
+        /// array as one argument.</param>
+        public static Result<TData> Error<TData>(ErrorDescriptor descriptor, params object?[] arguments)
+        {
+            ArgumentNullException.ThrowIfNull(descriptor);
+
+            return new Result<TData>([descriptor.CreateError(arguments)]);
+        }
+
         #endregion
 
         /// <summary>
@@ -199,6 +229,9 @@
         /// <inheritdoc/>
         public ErrorKind Kind { get; }
 
+        /// <inheritdoc/>
+        public IReadOnlyList<object?> Arguments { get; } = [];
+
         /// <summary>
         /// Creates an error with <see cref="ErrorKind.Unspecified"/>. Kept as a distinct
         /// constructor (not an optional parameter) for binary compatibility with assemblies
@@ -228,6 +261,20 @@
             Message = message;
             Kind = kind;
         }
+
+        /// <summary>
+        /// Creates a categorized error carrying the format arguments its message was built from.
+        /// </summary>
+        /// <param name="code">Error code; <see langword="null"/> is stored as an empty string.</param>
+        /// <param name="message">Error message; required.</param>
+        /// <param name="kind">Semantic category of the error.</param>
+        /// <param name="arguments">Format arguments of the message; required (may be empty).</param>
+        /// <exception cref="ArgumentException"><paramref name="message"/> is null or empty.</exception>
+        public Error(string? code, string message, ErrorKind kind, IReadOnlyList<object?> arguments)
+            : this(code, message, kind)
+        {
+            Arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+        }
     }
 
     /// <summary>
@@ -250,5 +297,12 @@
         /// implementation provides one.
         /// </summary>
         ErrorKind Kind => ErrorKind.Unspecified;
+
+        /// <summary>
+        /// Format arguments the <see cref="Message"/> was built from. Transport layers use them
+        /// with an <see cref="IErrorLocalizer"/> to rebuild the message from a localized template;
+        /// empty when the error carries no arguments.
+        /// </summary>
+        IReadOnlyList<object?> Arguments => [];
     }
 }

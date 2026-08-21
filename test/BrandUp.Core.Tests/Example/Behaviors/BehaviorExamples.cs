@@ -173,6 +173,36 @@ namespace BrandUp.Example.Behaviors
         }
     }
 
+    public class NestingInvalidateCommand : ICommand
+    {
+    }
+
+    // Dispatches an ICacheInvalidating command from inside another command: the invalidation
+    // must wait for the OUTER command's completion.
+    public class NestingInvalidateCommandHandler(IDomain domain, EventLog log) : ICommandHandler<NestingInvalidateCommand>
+    {
+        public async Task<Result> HandleAsync(NestingInvalidateCommand command, CancellationToken cancellationToken = default)
+        {
+            var innerResult = await domain.SendAsync(new InvalidateCountCommand(), cancellationToken);
+
+            log.Add("outer-command");
+
+            return innerResult;
+        }
+    }
+
+    // Queries a cached query from a deferred event handler - runs after the command completed,
+    // so the cache must be served, not bypassed.
+    public class QueryingDeferredHandler(IDomain domain, EventLog log) : IDeferredDomainEventHandler<UserJoined>
+    {
+        public async Task HandleAsync(UserJoined @event, CancellationToken cancellationToken = default)
+        {
+            var queryResult = await domain.QueryAsync(new CachedCountQuery(), cancellationToken);
+
+            log.Add($"deferred-query:{queryResult.Data}");
+        }
+    }
+
     public class FakeEventOutbox : IEventOutbox
     {
         readonly List<IDomainEvent> events = [];
