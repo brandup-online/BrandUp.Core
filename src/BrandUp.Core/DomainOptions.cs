@@ -1,13 +1,14 @@
 using System.Collections.Frozen;
 using System.Diagnostics.CodeAnalysis;
 using BrandUp.Commands;
+using BrandUp.Events;
 using BrandUp.Queries;
 
 namespace BrandUp
 {
     /// <summary>
-    /// Registry of query and command handlers that backs an <see cref="IDomain"/>.
-    /// Configured via <c>AddDomain</c>; handlers are keyed by query type and command type.
+    /// Registry of query, command and event handlers that backs an <see cref="IDomain"/>.
+    /// Configured via <c>AddDomain</c>; handlers are keyed by query, command and event type.
     /// </summary>
     public class DomainOptions
     {
@@ -17,12 +18,28 @@ namespace BrandUp
         internal readonly static Type CommandHandlerNotResultDefinitionType = typeof(ICommandHandler<>);
         internal readonly static Type ItemCommandHandlerWithResultDefinitionType = typeof(IItemCommandHandler<,,>);
         internal readonly static Type ItemCommandHandlerNotResultDefinitionType = typeof(IItemCommandHandler<,>);
+        internal readonly static Type EventHandlerDefinitionType = typeof(IDomainEventHandler<>);
+        internal readonly static Type DeferredEventHandlerDefinitionType = typeof(IDeferredDomainEventHandler<>);
 
         readonly Dictionary<Type, QueryMetadata> queries = [];
         readonly Dictionary<Type, CommandMetadata> commands = [];
+        readonly Dictionary<Type, List<EventMetadata>> events = [];
 
         FrozenDictionary<Type, QueryMetadata>? frozenQueries;
         FrozenDictionary<Type, CommandMetadata>? frozenCommands;
+        FrozenDictionary<Type, IReadOnlyList<EventMetadata>>? frozenEvents;
+
+        /// <summary>
+        /// When <see langword="true"/>, publishing an event with no registered handlers throws
+        /// instead of being a no-op. Off by default: broadcast semantics allow optional subscribers.
+        /// </summary>
+        public bool RequireEventHandlers { get; set; }
+
+        /// <summary>
+        /// <see langword="true"/> when at least one deferred event handler is registered; command
+        /// dispatch skips the deferral machinery entirely otherwise.
+        /// </summary>
+        internal bool HasDeferredEventHandlers { get; private set; }
 
         /// <summary>
         /// Registers a query handler.
@@ -130,6 +147,60 @@ namespace BrandUp
         }
 
         /// <summary>
+        /// Registers an event handler. Unlike commands, an event may have several handlers, and one
+        /// handler class may handle several event types — it is registered for each of them.
+        /// </summary>
+        /// <typeparam name="THandler">
+        /// A type implementing <see cref="IDomainEventHandler{TEvent}"/> (or
+        /// <see cref="IDeferredDomainEventHandler{TEvent}"/> for deferred execution) for one or more event types.
+        /// </typeparam>
+        /// <returns>This instance, for chaining.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// The type is not an event handler, or it is already registered for one of its event types.
+        /// </exception>
+        public DomainOptions AddEvent<THandler>()
+        {
+            var handlerType = typeof(THandler);
+            var handlerInterfaces = handlerType.GetInterfaces();
+
+            // Validate and build first, mutate after: a duplicate must not leave the registry
+            // partially updated for a multi-event handler.
+            var registrations = new List<EventMetadata>();
+            foreach (var handlerInterface in handlerInterfaces)
+            {
+                if (!handlerInterface.IsGenericType || handlerInterface.GetGenericTypeDefinition() != EventHandlerDefinitionType)
+                    continue;
+
+                var eventType = handlerInterface.GenericTypeArguments[0];
+
+                if (events.TryGetValue(eventType, out var registered) && registered.Exists(m => m.HandlerType == handlerType))
+                    throw new InvalidOperationException($"Event handler \"{handlerType.AssemblyQualifiedName}\" already exist by event type \"{eventType.AssemblyQualifiedName}\".");
+
+                // Exact declared-interface match: assignability would also match variant-compatible event types.
+                var isDeferred = Array.IndexOf(handlerInterfaces, DeferredEventHandlerDefinitionType.MakeGenericType(eventType)) >= 0;
+
+                registrations.Add(EventMetadata.Build(handlerType, handlerInterface, eventType, isDeferred));
+            }
+
+            if (registrations.Count == 0)
+                throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {EventHandlerDefinitionType.FullName}.");
+
+            foreach (var eventMetadata in registrations)
+            {
+                if (!events.TryGetValue(eventMetadata.EventType, out var eventHandlers))
+                    events.Add(eventMetadata.EventType, eventHandlers = []);
+                eventHandlers.Add(eventMetadata);
+
+                if (eventMetadata.IsDeferred)
+                    HasDeferredEventHandlers = true;
+            }
+
+            frozenEvents = null;
+
+            return this;
+        }
+
+        /// <summary>
         /// Looks up the metadata of the handler registered for the given query type.
         /// </summary>
         /// <param name="queryType">Concrete query type.</param>
@@ -151,6 +222,18 @@ namespace BrandUp
         {
             frozenCommands ??= commands.ToFrozenDictionary();
             return frozenCommands.TryGetValue(commandType, out commandMetadata);
+        }
+
+        /// <summary>
+        /// Looks up the metadata of the handlers registered for the given event type, in registration order.
+        /// </summary>
+        /// <param name="eventType">Concrete event type.</param>
+        /// <param name="eventHandlers">The found metadata list, or <see langword="null"/> if none are registered.</param>
+        /// <returns><see langword="true"/> if at least one handler is registered.</returns>
+        public bool TryGetEventHandlers(Type eventType, [MaybeNullWhen(false)] out IReadOnlyList<EventMetadata> eventHandlers)
+        {
+            frozenEvents ??= events.ToFrozenDictionary(kv => kv.Key, kv => (IReadOnlyList<EventMetadata>)[.. kv.Value]);
+            return frozenEvents.TryGetValue(eventType, out eventHandlers);
         }
     }
 }

@@ -1,4 +1,5 @@
 using BrandUp.Commands;
+using BrandUp.Events;
 using BrandUp.Items;
 using BrandUp.Queries;
 using BrandUp.Validation;
@@ -7,10 +8,11 @@ using Microsoft.Extensions.Options;
 
 namespace BrandUp
 {
-    internal class DomainImpl(IOptions<DomainOptions> options, IServiceProvider serviceProvider) : IDomain
+    internal class DomainImpl(IOptions<DomainOptions> options, IServiceProvider serviceProvider, DomainEventPublisher eventPublisher) : IDomain
     {
         readonly DomainOptions options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        readonly DomainEventPublisher eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
 
         #region IDomain members
 
@@ -40,7 +42,7 @@ namespace BrandUp
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<IList<TRow>>();
 
-            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, queryMetadata.HandlerType);
+            var handlerObject = queryMetadata.CreateHandler(serviceProvider);
             try
             {
                 var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
@@ -49,7 +51,7 @@ namespace BrandUp
             }
             finally
             {
-                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+                await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
             }
         }
 
@@ -67,14 +69,14 @@ namespace BrandUp
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TModel>();
 
-            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, queryMetadata.HandlerType);
+            var handlerObject = queryMetadata.CreateHandler(serviceProvider);
             try
             {
                 return await ((Task<Result<TModel>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
             }
             finally
             {
-                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+                await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
             }
         }
 
@@ -92,15 +94,7 @@ namespace BrandUp
             if (!validationResult.IsSuccess)
                 return validationResult;
 
-            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-            try
-            {
-                return await ((Task<Result>)commandMetadata.Invoke(handlerObject, null, command, cancellationToken)).ConfigureAwait(false);
-            }
-            finally
-            {
-                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-            }
+            return await ExecuteCommandAsync<Result>(commandMetadata, null, command, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result<TResultData>> SendAsync<TResultData>(ICommand<TResultData> command, CancellationToken cancellationToken = default)
@@ -117,15 +111,7 @@ namespace BrandUp
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TResultData>();
 
-            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-            try
-            {
-                return await ((Task<Result<TResultData>>)commandMetadata.Invoke(handlerObject, null, command, cancellationToken)).ConfigureAwait(false);
-            }
-            finally
-            {
-                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-            }
+            return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, null, command, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result> SendItemAsync<TId, TItem>(IItem<TId> item, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
@@ -144,15 +130,7 @@ namespace BrandUp
             if (!validationResult.IsSuccess)
                 return validationResult;
 
-            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-            try
-            {
-                return await ((Task<Result>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
-            }
-            finally
-            {
-                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-            }
+            return await ExecuteCommandAsync<Result>(commandMetadata, item, command, cancellationToken).ConfigureAwait(false);
         }
 
         public async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(IItem<TId> item, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
@@ -171,15 +149,7 @@ namespace BrandUp
             if (!validationResult.IsSuccess)
                 return validationResult.AsObjectiveErrors<TResultData>();
 
-            var handlerObject = ActivatorUtilities.CreateInstance(serviceProvider, commandMetadata.HandlerType);
-            try
-            {
-                return await ((Task<Result<TResultData>>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
-            }
-            finally
-            {
-                await DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
-            }
+            return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, item, command, cancellationToken).ConfigureAwait(false);
         }
 
         #endregion
@@ -197,12 +167,51 @@ namespace BrandUp
             return Result.Success();
         }
 
-        static async ValueTask DisposeHandlerAsync(object handler)
+        async Task<TResult> ExecuteCommandAsync<TResult>(CommandMetadata commandMetadata, object? item, object command, CancellationToken cancellationToken)
+            where TResult : Result
         {
-            if (handler is IAsyncDisposable asyncDisposable)
-                await asyncDisposable.DisposeAsync().ConfigureAwait(false);
-            else if (handler is IDisposable disposable)
-                disposable.Dispose();
+            var handlerObject = commandMetadata.CreateHandler(serviceProvider);
+
+            // With no deferred handlers registered the command scope is provably inert - skip
+            // its allocations and AsyncLocal writes entirely.
+            var withEventScope = options.HasDeferredEventHandlers;
+            if (!withEventScope)
+            {
+                try
+                {
+                    return await ((Task<TResult>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
+                }
+                finally
+                {
+                    await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+                }
+            }
+
+            eventPublisher.BeginCommand();
+            var success = false;
+            try
+            {
+                var result = await ((Task<TResult>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
+                success = result is { IsSuccess: true };
+                return result;
+            }
+            finally
+            {
+                var disposed = false;
+                try
+                {
+                    await HandlerActivator.DisposeHandlerAsync(handlerObject).ConfigureAwait(false);
+                    disposed = true;
+                }
+                finally
+                {
+                    // Runs even when handler dispose throws: an unbalanced command scope would
+                    // otherwise silently break deferred events for the rest of the async flow.
+                    // A throwing dispose surfaces as an exception to the caller, so the deferred
+                    // events are discarded to match what the caller observes.
+                    await eventPublisher.EndCommandAsync(success && disposed).ConfigureAwait(false);
+                }
+            }
         }
     }
 }

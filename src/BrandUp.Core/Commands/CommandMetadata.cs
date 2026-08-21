@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using System.Reflection;
 
 namespace BrandUp.Commands
@@ -9,6 +8,7 @@ namespace BrandUp.Commands
     public class CommandMetadata
     {
         readonly Func<object, object?, object, CancellationToken, object> invoker;
+        readonly Func<IServiceProvider, object> handlerFactory;
 
         /// <summary>
         /// Concrete handler type.
@@ -45,7 +45,7 @@ namespace BrandUp.Commands
         /// </summary>
         public bool WithResult => ResultType != null;
 
-        CommandMetadata(Type handlerType, Type? itemType, Type commandType, Type? resultType, MethodInfo handleMethod, Func<object, object?, object, CancellationToken, object> invoker)
+        CommandMetadata(Type handlerType, Type? itemType, Type commandType, Type? resultType, MethodInfo handleMethod, Func<object, object?, object, CancellationToken, object> invoker, Func<IServiceProvider, object> handlerFactory)
         {
             HandlerType = handlerType;
             ItemType = itemType;
@@ -53,6 +53,12 @@ namespace BrandUp.Commands
             ResultType = resultType;
             HandleMethod = handleMethod;
             this.invoker = invoker;
+            this.handlerFactory = handlerFactory;
+        }
+
+        internal object CreateHandler(IServiceProvider serviceProvider)
+        {
+            return handlerFactory(serviceProvider);
         }
 
         internal object Invoke(object handler, object? item, object command, CancellationToken cancellationToken)
@@ -66,37 +72,11 @@ namespace BrandUp.Commands
                 ? [itemType, commandType, typeof(CancellationToken)]
                 : [commandType, typeof(CancellationToken)];
 
-            var handleMethod = handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, methodParamTypes, null)
-                ?? throw new InvalidOperationException($"Not found \"HandleAsync\" method on command handler interface \"{handlerInterface.AssemblyQualifiedName}\".");
+            var handleMethod = HandlerActivator.GetHandleMethod(handlerInterface, methodParamTypes);
+            var invoker = HandlerActivator.BuildInvoker(handlerInterface, handleMethod, itemType, commandType);
+            var handlerFactory = HandlerActivator.BuildFactory(handlerType);
 
-            var invoker = BuildInvoker(handlerInterface, handleMethod, itemType, commandType);
-
-            return new CommandMetadata(handlerType, itemType, commandType, resultType, handleMethod, invoker);
-        }
-
-        static Func<object, object?, object, CancellationToken, object> BuildInvoker(Type handlerInterface, MethodInfo handleMethod, Type? itemType, Type commandType)
-        {
-            var handlerParam = Expression.Parameter(typeof(object), "handler");
-            var itemParam = Expression.Parameter(typeof(object), "item");
-            var commandParam = Expression.Parameter(typeof(object), "command");
-            var cancellationTokenParam = Expression.Parameter(typeof(CancellationToken), "cancellationToken");
-
-            var instance = Expression.Convert(handlerParam, handlerInterface);
-
-            MethodCallExpression call;
-            if (itemType != null)
-                call = Expression.Call(instance, handleMethod,
-                    Expression.Convert(itemParam, itemType),
-                    Expression.Convert(commandParam, commandType),
-                    cancellationTokenParam);
-            else
-                call = Expression.Call(instance, handleMethod,
-                    Expression.Convert(commandParam, commandType),
-                    cancellationTokenParam);
-
-            return Expression.Lambda<Func<object, object?, object, CancellationToken, object>>(
-                Expression.Convert(call, typeof(object)),
-                handlerParam, itemParam, commandParam, cancellationTokenParam).Compile();
+            return new CommandMetadata(handlerType, itemType, commandType, resultType, handleMethod, invoker, handlerFactory);
         }
     }
 }

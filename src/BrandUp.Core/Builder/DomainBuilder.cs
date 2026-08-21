@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using BrandUp.Events;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BrandUp.Builder
 {
@@ -26,6 +27,10 @@ namespace BrandUp.Builder
             var services = Services;
 
             services.AddScoped<IDomain, DomainImpl>();
+
+            // Scoped: event handlers are constructed from the publishing scope's service provider.
+            services.AddScoped<DomainEventPublisher>();
+            services.AddScoped<IDomainEventPublisher>(provider => provider.GetRequiredService<DomainEventPublisher>());
         }
     }
 
