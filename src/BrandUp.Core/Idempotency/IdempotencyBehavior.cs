@@ -1,4 +1,5 @@
 using BrandUp.Behaviors;
+using Microsoft.Extensions.Logging;
 
 namespace BrandUp.Idempotency
 {
@@ -17,20 +18,27 @@ namespace BrandUp.Idempotency
     /// <see cref="InMemoryIdempotencyStore"/>), so retries recover instead of being rejected
     /// forever.
     /// </summary>
-    public sealed class IdempotencyBehavior(IIdempotencyStore store) : IDomainBehavior
+    public sealed class IdempotencyBehavior(IIdempotencyStore store, ILogger<IdempotencyBehavior>? logger = null) : IDomainBehavior
     {
         readonly IIdempotencyStore store = store ?? throw new ArgumentNullException(nameof(store));
 
         /// <inheritdoc/>
-        public async Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+        public Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
         {
+            // Queries, nested commands and non-idempotent commands pass through with no async
+            // state machine.
             if (!context.IsCommand
                 || context.IsInsideCommand
                 || context.Request is not IIdempotentCommand { IdempotencyKey: { Length: > 0 } key })
             {
-                return await next().ConfigureAwait(false);
+                return next();
             }
 
+            return InvokeCoreAsync(key, context, next, cancellationToken);
+        }
+
+        async Task<Result> InvokeCoreAsync(string key, DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken)
+        {
             var existing = await store.TryClaimAsync(key, cancellationToken).ConfigureAwait(false);
             if (existing != null)
             {
@@ -57,21 +65,50 @@ namespace BrandUp.Idempotency
                     // hence the documented ordering rule.
                     var dispatchScope = CommandDispatchScope.Current;
                     if (dispatchScope != null)
-                        dispatchScope.OnCompleted(() => store.CompleteAsync(key, result, CancellationToken.None));
+                        dispatchScope.OnCompleted(() => CompleteBoundedAsync(key, result));
                     else
-                        await store.CompleteAsync(key, result, CancellationToken.None).ConfigureAwait(false);
+                        await CompleteBoundedAsync(key, result).ConfigureAwait(false);
                 }
                 else
                 {
-                    await store.ReleaseAsync(key, CancellationToken.None).ConfigureAwait(false);
+                    await ReleaseBoundedAsync(key).ConfigureAwait(false);
                 }
 
                 return result;
             }
             catch
             {
-                await store.ReleaseAsync(key, CancellationToken.None).ConfigureAwait(false);
+                await ReleaseBoundedAsync(key).ConfigureAwait(false);
                 throw;
+            }
+        }
+
+        // Post-decision store calls are bounded (see PostDecision): a hung distributed store must
+        // not stall an already-completed command. A lost record is safe either way - the claim
+        // lease frees the key.
+        async ValueTask CompleteBoundedAsync(string key, Result result)
+        {
+            using var timeoutSource = PostDecision.CreateTimeoutSource();
+            try
+            {
+                await store.CompleteAsync(key, result, timeoutSource.Token).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                logger?.LogError(exception, "Idempotency completion of key \"{IdempotencyKey}\" failed; the key stays claimed until its lease expires.", key);
+            }
+        }
+
+        async ValueTask ReleaseBoundedAsync(string key)
+        {
+            using var timeoutSource = PostDecision.CreateTimeoutSource();
+            try
+            {
+                await store.ReleaseAsync(key, timeoutSource.Token).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                logger?.LogError(exception, "Idempotency release of key \"{IdempotencyKey}\" failed; the key stays claimed until its lease expires.", key);
             }
         }
     }

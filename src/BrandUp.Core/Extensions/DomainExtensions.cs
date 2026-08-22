@@ -27,11 +27,11 @@ namespace BrandUp
 
             var itemProvider = domain.GetItemProvider<IItemProvider<TId, TItem>>();
 
-            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
+            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
             if (item == null)
                 return Result.Error(DomainErrors.ItemNotFound, itemId);
 
-            return await domain.SendItemAsync(item, command, cancellationToken);
+            return await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -54,11 +54,11 @@ namespace BrandUp
 
             var itemProvider = domain.GetItemProvider<IItemProvider<TId, TItem>>();
 
-            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
+            var item = await itemProvider.FindByIdAsync(itemId, cancellationToken).ConfigureAwait(false);
             if (item == null)
                 return Result.Error<TResultData>(DomainErrors.ItemNotFound, itemId);
 
-            return await domain.SendItemAsync(item, command, cancellationToken);
+            return await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false);
         }
     }
 }

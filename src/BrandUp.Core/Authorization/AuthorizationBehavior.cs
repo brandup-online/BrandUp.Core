@@ -18,11 +18,25 @@ namespace BrandUp.Authorization
         static readonly ConcurrentDictionary<Type, AuthorizerInvoker> invokers = new();
 
         /// <inheritdoc/>
-        public async Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+        public Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
         {
             var invoker = invokers.GetOrAdd(context.Request.GetType(), static requestType => AuthorizerInvoker.Build(requestType));
 
-            foreach (var authorizer in context.Services.GetServices(invoker.ServiceType))
+            // The closed IEnumerable<IDomainAuthorizer<T>> type is cached on the invoker:
+            // GetServices(Type) would re-derive it through MakeGenericType on every dispatch.
+            var authorizers = (IEnumerable<object?>)context.Services.GetRequiredService(invoker.EnumerableType);
+
+            // No authorizer registered for this request type - the container hands back an empty
+            // array; pass through with no async state machine.
+            if (authorizers is System.Collections.ICollection { Count: 0 })
+                return next();
+
+            return InvokeCoreAsync(invoker, authorizers, context, next, cancellationToken);
+        }
+
+        static async Task<Result> InvokeCoreAsync(AuthorizerInvoker invoker, IEnumerable<object?> authorizers, DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken)
+        {
+            foreach (var authorizer in authorizers)
             {
                 var result = await invoker.Invoke(authorizer!, context.Request, context, cancellationToken).ConfigureAwait(false)
                     ?? throw new InvalidOperationException($"Authorizer \"{authorizer!.GetType().AssemblyQualifiedName}\" returned null instead of a Result.");
@@ -39,6 +53,7 @@ namespace BrandUp.Authorization
         sealed class AuthorizerInvoker
         {
             public required Type ServiceType { get; init; }
+            public required Type EnumerableType { get; init; }
             public required Func<object, object, DomainBehaviorContext, CancellationToken, Task<Result>> Invoke { get; init; }
 
             public static AuthorizerInvoker Build(Type requestType)
@@ -61,7 +76,12 @@ namespace BrandUp.Authorization
                 var invoke = Expression.Lambda<Func<object, object, DomainBehaviorContext, CancellationToken, Task<Result>>>(
                     call, authorizerParameter, requestParameter, contextParameter, cancellationTokenParameter).Compile();
 
-                return new AuthorizerInvoker { ServiceType = serviceType, Invoke = invoke };
+                return new AuthorizerInvoker
+                {
+                    ServiceType = serviceType,
+                    EnumerableType = typeof(IEnumerable<>).MakeGenericType(serviceType),
+                    Invoke = invoke
+                };
             }
         }
     }

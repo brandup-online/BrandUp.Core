@@ -33,6 +33,10 @@ namespace BrandUp.Events.MongoDB
         [BsonElement("l"), BsonDateTimeOptions(Kind = DateTimeKind.Utc, Representation = BsonType.DateTime)]
         public DateTime? LockedUntil { get; set; }
 
+        /// <summary>Token of the claim pass that stamped the current lease (see <see cref="MongoEventOutbox.ClaimPendingAsync"/>).</summary>
+        [BsonElement("c"), BsonIgnoreIfNull]
+        public ObjectId? ClaimToken { get; set; }
+
         /// <summary>When the event was successfully delivered; delivered events are never retried.</summary>
         [BsonElement("d"), BsonDateTimeOptions(Kind = DateTimeKind.Utc, Representation = BsonType.DateTime)]
         public DateTime? DeliveredAt { get; set; }

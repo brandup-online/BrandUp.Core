@@ -35,6 +35,14 @@ namespace BrandUp.Events.MongoDB
         public int BatchSize { get; set; } = 50;
 
         /// <summary>
+        /// How long delivered events are kept before MongoDB's TTL monitor removes them; 7 days
+        /// by default, so the collection does not grow forever. <see langword="null"/> keeps
+        /// delivered events indefinitely (an already-created TTL index stays in place). Dead
+        /// (poison) events are never expired — they stay for inspection until removed manually.
+        /// </summary>
+        public TimeSpan? DeliveredRetention { get; set; } = TimeSpan.FromDays(7);
+
+        /// <summary>
         /// Resolves the database holding the outbox collection; by default
         /// <see cref="IMongoDatabase"/> is taken from the service provider.
         /// </summary>

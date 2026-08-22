@@ -88,39 +88,60 @@ namespace BrandUp.Events.MongoDB
                 Builders<OutboxEventDocument>.Update.Set(document => document.DeadAt, sweepNow),
                 cancellationToken: cancellationToken).ConfigureAwait(false);
 
-            var claimed = new List<OutboxEventDocument>();
-            var updateOptions = new FindOneAndUpdateOptions<OutboxEventDocument> { ReturnDocument = ReturnDocument.After };
+            // Bulk claim in three round trips instead of one FindOneAndUpdate per event, so the
+            // pass cost does not scale with BatchSize × network RTT: pick candidate ids, stamp
+            // them atomically with this pass's claim token (the pending filter is re-checked in
+            // the update, so ids stolen by a concurrent processor are simply not stamped), then
+            // fetch the stamped documents.
+            var now = DateTime.UtcNow;
+            var pendingFilter = Builders<OutboxEventDocument>.Filter.And(
+                Builders<OutboxEventDocument>.Filter.Eq(document => document.DeliveredAt, null),
+                Builders<OutboxEventDocument>.Filter.Eq(document => document.DeadAt, null),
+                Builders<OutboxEventDocument>.Filter.Lt(document => document.Attempts, options.MaxAttempts),
+                Builders<OutboxEventDocument>.Filter.Or(
+                    Builders<OutboxEventDocument>.Filter.Eq(document => document.LockedUntil, null),
+                    Builders<OutboxEventDocument>.Filter.Lt(document => document.LockedUntil, now)));
 
-            while (claimed.Count < batchSize)
-            {
-                var now = DateTime.UtcNow;
-                var filter = Builders<OutboxEventDocument>.Filter.And(
-                    Builders<OutboxEventDocument>.Filter.Eq(document => document.DeliveredAt, null),
-                    Builders<OutboxEventDocument>.Filter.Eq(document => document.DeadAt, null),
-                    Builders<OutboxEventDocument>.Filter.Lt(document => document.Attempts, options.MaxAttempts),
-                    Builders<OutboxEventDocument>.Filter.Or(
-                        Builders<OutboxEventDocument>.Filter.Eq(document => document.LockedUntil, null),
-                        Builders<OutboxEventDocument>.Filter.Lt(document => document.LockedUntil, now)));
-                var update = Builders<OutboxEventDocument>.Update
+            var candidateIds = await collection.Find(pendingFilter)
+                .Limit(batchSize)
+                .Project(document => document.Id)
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
+            if (candidateIds.Count == 0)
+                return [];
+
+            // Candidates stolen by a concurrent processor mid-race are simply not stamped: that
+            // pass may come back short (or empty) while the winner drains without the poll
+            // delay - a latency trade, never a lost event.
+            var claimToken = ObjectId.GenerateNewId();
+            await collection.UpdateManyAsync(
+                Builders<OutboxEventDocument>.Filter.And(
+                    Builders<OutboxEventDocument>.Filter.In(document => document.Id, candidateIds),
+                    pendingFilter),
+                Builders<OutboxEventDocument>.Update
                     .Set(document => document.LockedUntil, now + options.LeaseDuration)
-                    .Inc(document => document.Attempts, 1);
+                    .Set(document => document.ClaimToken, claimToken)
+                    .Inc(document => document.Attempts, 1),
+                cancellationToken: cancellationToken).ConfigureAwait(false);
 
-                var document = await collection.FindOneAndUpdateAsync(filter, update, updateOptions, cancellationToken).ConfigureAwait(false);
-                if (document == null)
-                    break;
-
-                claimed.Add(document);
-            }
-
-            return claimed;
+            // The id list keeps the fetch on the _id index; the token alone would be a full
+            // collection scan (ClaimToken is deliberately unindexed).
+            return await collection.Find(
+                    Builders<OutboxEventDocument>.Filter.And(
+                        Builders<OutboxEventDocument>.Filter.In(document => document.Id, candidateIds),
+                        Builders<OutboxEventDocument>.Filter.Eq(document => document.ClaimToken, claimToken)))
+                .ToListAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        const string DeliveredTtlIndexName = "delivered_ttl";
+
         /// <summary>
-        /// Creates the compound index backing the claim and sweep filters. Called once by
+        /// Creates the compound index backing the claim and sweep filters, plus a TTL index that
+        /// expires delivered events after <see cref="MongoOutboxOptions.DeliveredRetention"/> (the
+        /// collection would otherwise grow forever). Called once by
         /// <see cref="MongoOutboxProcessor"/> at startup; safe to call repeatedly.
         /// </summary>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        public Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
+        public async Task EnsureIndexesAsync(CancellationToken cancellationToken = default)
         {
             var keys = Builders<OutboxEventDocument>.IndexKeys
                 .Ascending(document => document.DeliveredAt)
@@ -128,7 +149,27 @@ namespace BrandUp.Events.MongoDB
                 .Ascending(document => document.Attempts)
                 .Ascending(document => document.LockedUntil);
 
-            return collection.Indexes.CreateOneAsync(new CreateIndexModel<OutboxEventDocument>(keys), cancellationToken: cancellationToken);
+            await collection.Indexes.CreateOneAsync(new CreateIndexModel<OutboxEventDocument>(keys), cancellationToken: cancellationToken).ConfigureAwait(false);
+
+            // TTL applies to DeliveredAt only: undelivered and dead documents carry no date there,
+            // so MongoDB's TTL monitor never touches them.
+            if (options.DeliveredRetention is not { } retention)
+                return;
+
+            var ttlModel = new CreateIndexModel<OutboxEventDocument>(
+                Builders<OutboxEventDocument>.IndexKeys.Ascending(document => document.DeliveredAt),
+                new CreateIndexOptions { Name = DeliveredTtlIndexName, ExpireAfter = retention });
+
+            try
+            {
+                await collection.Indexes.CreateOneAsync(ttlModel, cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+            catch (MongoCommandException exception) when (exception.CodeName is "IndexOptionsConflict" or "IndexKeySpecsConflict")
+            {
+                // The retention changed since the index was created - recreate with the new expiry.
+                await collection.Indexes.DropOneAsync(DeliveredTtlIndexName, cancellationToken).ConfigureAwait(false);
+                await collection.Indexes.CreateOneAsync(ttlModel, cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
         }
 
         /// <summary>

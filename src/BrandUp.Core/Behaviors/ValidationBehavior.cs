@@ -1,5 +1,4 @@
 using BrandUp.Validation;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace BrandUp.Behaviors
 {
@@ -9,23 +8,48 @@ namespace BrandUp.Behaviors
     /// </summary>
     public sealed class ValidationBehavior : IDomainBehavior
     {
+        readonly IValidator[] validators;
+
+        /// <summary>
+        /// Creates the behavior over the validators of the executing scope.
+        /// </summary>
+        /// <param name="validators">Registered validators.</param>
+        public ValidationBehavior(IEnumerable<IValidator> validators)
+        {
+            ArgumentNullException.ThrowIfNull(validators);
+
+            // Dedupe by implementation type once - the set is fixed for the scope's lifetime.
+            // TryAddEnumerable cannot see a validator the app registered on the service
+            // collection directly (e.g. the default ComponentModelValidator added a second
+            // time), and running the same validator twice would duplicate every error it
+            // reports.
+            List<IValidator> unique = [];
+            HashSet<Type>? seen = null;
+            foreach (var validator in validators)
+            {
+                if ((seen ??= []).Add(validator.GetType()))
+                    unique.Add(validator);
+            }
+
+            this.validators = [.. unique];
+        }
+
         /// <inheritdoc/>
-        public async Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+        public Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+        {
+            // No validators - a pure passthrough with no async state machine.
+            if (validators.Length == 0)
+                return next();
+
+            return InvokeCoreAsync(context, next, cancellationToken);
+        }
+
+        async Task<Result> InvokeCoreAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken)
         {
             List<ValidationError>? errors = null;
-            HashSet<Type>? seenValidators = null;
 
-            foreach (var validator in context.Services.GetServices<IValidator>())
-            {
-                // Dedupe by implementation type: TryAddEnumerable cannot see a validator the app
-                // registered on the service collection directly (e.g. the default
-                // ComponentModelValidator added a second time), and running the same validator
-                // twice would duplicate every error it reports.
-                if (!(seenValidators ??= []).Add(validator.GetType()))
-                    continue;
-
+            foreach (var validator in validators)
                 await validator.ValidateAsync(context.Request, context.Services, errors ??= [], cancellationToken).ConfigureAwait(false);
-            }
 
             if (errors is { Count: > 0 })
                 return context.CreateError([.. errors]);

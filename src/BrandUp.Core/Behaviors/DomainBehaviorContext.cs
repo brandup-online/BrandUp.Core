@@ -94,7 +94,13 @@ namespace BrandUp.Behaviors
         /// <param name="errors">Non-empty set of errors.</param>
         public Result CreateError(IList<IError> errors)
         {
-            return errorFactory(errors);
+            ArgumentNullException.ThrowIfNull(errors);
+
+            // Copied before the factory: the internal Result constructor adopts arrays without
+            // copying, and this is a public API - a caller-retained array must not alias into
+            // the result's error set.
+            IError[] copied = [.. errors];
+            return errorFactory(copied);
         }
 
         /// <summary>

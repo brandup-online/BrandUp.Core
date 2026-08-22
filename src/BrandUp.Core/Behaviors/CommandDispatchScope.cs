@@ -21,11 +21,12 @@ namespace BrandUp.Behaviors
     {
         static readonly AsyncLocal<CommandDispatchScope?> current = new();
 
-        // Guards `completionActions` and `ended`: parallel nested commands promote into the
-        // shared parent concurrently, and a task inheriting the scope may touch it after it ended.
-        readonly object gate = new();
+        // `lock (this)` guards `completionActions` and the ended transition: parallel nested
+        // commands promote into the shared parent concurrently, and a task inheriting the scope
+        // may touch it after it ended (internal type - no external code can lock it). `ended` is
+        // volatile so the hot read path (Current, once per dispatch) needs no lock.
         List<Func<ValueTask>>? completionActions;
-        bool ended;
+        volatile bool ended;
 
         CommandDispatchScope(CommandDispatchScope? parent)
         {
@@ -42,11 +43,7 @@ namespace BrandUp.Behaviors
             get
             {
                 var scope = current.Value;
-                if (scope == null)
-                    return null;
-
-                lock (scope.gate)
-                    return scope.ended ? null : scope;
+                return scope == null || scope.ended ? null : scope;
             }
         }
 
@@ -68,7 +65,7 @@ namespace BrandUp.Behaviors
         {
             ArgumentNullException.ThrowIfNull(action);
 
-            lock (gate)
+            lock (this)
             {
                 if (ended)
                     throw new InvalidOperationException("The command dispatch scope has already ended.");
@@ -86,7 +83,7 @@ namespace BrandUp.Behaviors
         public async ValueTask CompleteAsync(bool success)
         {
             List<Func<ValueTask>>? pending;
-            lock (gate)
+            lock (this)
             {
                 ended = true;
                 pending = completionActions;
@@ -120,7 +117,7 @@ namespace BrandUp.Behaviors
 
         bool TryPromote(List<Func<ValueTask>> actions)
         {
-            lock (gate)
+            lock (this)
             {
                 if (ended)
                     return false;

@@ -19,11 +19,17 @@ namespace BrandUp.Transactions
         readonly ITransactionFactory transactionFactory = transactionFactory ?? throw new ArgumentNullException(nameof(transactionFactory));
 
         /// <inheritdoc/>
-        public async Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+        public Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
         {
+            // Queries and non-transactional commands pass through with no async state machine.
             if (!context.IsCommand || IsNonTransactional(context.Request.GetType()))
-                return await next().ConfigureAwait(false);
+                return next();
 
+            return InvokeInTransactionAsync(context, next, cancellationToken);
+        }
+
+        async Task<Result> InvokeInTransactionAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken)
+        {
             var activity = DomainDiagnostics.StartTransaction(context.Request.GetType());
             var outcome = "begin-failed";
             try

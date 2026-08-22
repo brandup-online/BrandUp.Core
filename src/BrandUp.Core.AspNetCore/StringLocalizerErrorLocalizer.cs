@@ -20,6 +20,12 @@ namespace BrandUp
     /// </summary>
     public sealed class StringLocalizerErrorLocalizer(IStringLocalizer localizer) : IErrorLocalizer
     {
+        // Culture names come from the request (Accept-Language drives CurrentUICulture), and
+        // .NET constructs a CultureInfo for any well-formed BCP-47 tag - without a cap a scanner
+        // cycling culture names would grow the cache for the process lifetime. Cultures beyond
+        // the cap are served uncached.
+        const int CultureCacheLimit = 64;
+
         readonly IStringLocalizer localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         readonly ConcurrentDictionary<string, Dictionary<string, string>> templatesByCulture = new();
 
@@ -59,28 +65,38 @@ namespace BrandUp
 
         Dictionary<string, string> GetTemplates(CultureInfo culture)
         {
-            return templatesByCulture.GetOrAdd(culture.Name, _ =>
+            if (templatesByCulture.TryGetValue(culture.Name, out var cached))
+                return cached;
+
+            var templates = BuildTemplates(culture);
+
+            if (templatesByCulture.Count < CultureCacheLimit)
+                templatesByCulture.TryAdd(culture.Name, templates);
+
+            return templates;
+        }
+
+        Dictionary<string, string> BuildTemplates(CultureInfo culture)
+        {
+            // IStringLocalizer.GetAllStrings(false) enumerates the exact-culture resource
+            // set of CultureInfo.CurrentUICulture: the swap happens once per culture per
+            // instance, not per lookup.
+            var previousCulture = CultureInfo.CurrentUICulture;
+            try
             {
-                // IStringLocalizer.GetAllStrings(false) enumerates the exact-culture resource
-                // set of CultureInfo.CurrentUICulture: the swap happens once per culture per
-                // instance, not per lookup.
-                var previousCulture = CultureInfo.CurrentUICulture;
-                try
-                {
-                    CultureInfo.CurrentUICulture = culture;
-                    return localizer.GetAllStrings(includeParentCultures: false)
-                        .ToDictionary(localized => localized.Name, localized => localized.Value);
-                }
-                catch (MissingManifestResourceException)
-                {
-                    // No resource set for this culture at all.
-                    return [];
-                }
-                finally
-                {
-                    CultureInfo.CurrentUICulture = previousCulture;
-                }
-            });
+                CultureInfo.CurrentUICulture = culture;
+                return localizer.GetAllStrings(includeParentCultures: false)
+                    .ToDictionary(localized => localized.Name, localized => localized.Value);
+            }
+            catch (MissingManifestResourceException)
+            {
+                // No resource set for this culture at all.
+                return [];
+            }
+            finally
+            {
+                CultureInfo.CurrentUICulture = previousCulture;
+            }
         }
     }
 

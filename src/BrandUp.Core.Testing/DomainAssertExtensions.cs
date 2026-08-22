@@ -21,7 +21,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            (await domain.SendAsync(command, cancellationToken)).AssertSuccess();
+            (await domain.SendAsync(command, cancellationToken).ConfigureAwait(false)).AssertSuccess();
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.SendAsync(command, cancellationToken)).AssertSuccess(check);
+            return (await domain.SendAsync(command, cancellationToken).ConfigureAwait(false)).AssertSuccess(check);
         }
 
         /// <summary>
@@ -57,7 +57,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            (await domain.SendItemAsync(item, command, cancellationToken)).AssertSuccess();
+            (await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false)).AssertSuccess();
 
             check?.Invoke((TItem)item);
         }
@@ -80,7 +80,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            var data = (await domain.SendItemAsync(item, command, cancellationToken)).AssertSuccess();
+            var data = (await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false)).AssertSuccess();
 
             check?.Invoke(data, (TItem)item);
 
@@ -107,9 +107,9 @@ namespace BrandUp.Testing
             ArgumentNullException.ThrowIfNull(domain);
             ArgumentNullException.ThrowIfNull(checkAsync);
 
-            var data = (await domain.SendItemAsync(item, command, cancellationToken)).AssertSuccess();
+            var data = (await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false)).AssertSuccess();
 
-            await checkAsync(data, (TItem)item);
+            await checkAsync(data, (TItem)item).ConfigureAwait(false);
 
             return data;
         }
@@ -128,7 +128,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.SendAsync(command, cancellationToken)).AssertError(code, kind);
+            return (await domain.SendAsync(command, cancellationToken).ConfigureAwait(false)).AssertError(code, kind);
         }
 
         /// <summary>
@@ -147,7 +147,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.SendAsync(command, cancellationToken)).AssertError(code, kind);
+            return (await domain.SendAsync(command, cancellationToken).ConfigureAwait(false)).AssertError(code, kind);
         }
 
         /// <summary>
@@ -168,7 +168,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.SendItemAsync(item, command, cancellationToken)).AssertError(code, kind);
+            return (await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false)).AssertError(code, kind);
         }
 
         /// <summary>
@@ -191,7 +191,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.SendItemAsync(item, command, cancellationToken)).AssertError(code, kind);
+            return (await domain.SendItemAsync(item, command, cancellationToken).ConfigureAwait(false)).AssertError(code, kind);
         }
 
         /// <summary>
@@ -282,7 +282,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.QueryAsync(query, cancellationToken)).AssertSuccess(check);
+            return (await domain.QueryAsync(query, cancellationToken).ConfigureAwait(false)).AssertSuccess(check);
         }
 
         /// <summary>
@@ -299,7 +299,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.QueryAsync(query, cancellationToken)).AssertSuccess(check);
+            return (await domain.QueryAsync(query, cancellationToken).ConfigureAwait(false)).AssertSuccess(check);
         }
 
         /// <summary>
@@ -318,7 +318,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            return (await domain.QueryAsync(query, cancellationToken)).AssertError(code, kind);
+            return (await domain.QueryAsync(query, cancellationToken).ConfigureAwait(false)).AssertError(code, kind);
         }
 
         /// <summary>
@@ -354,7 +354,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            var item = await domain.FindItemAsync<TId, TItem>(itemId, cancellationToken)
+            var item = await domain.FindItemAsync<TId, TItem>(itemId, cancellationToken).ConfigureAwait(false)
                 ?? throw DomainAssert.Failure($"Expected item {typeof(TItem).Name} \"{itemId}\" to exist, but it was not found.");
 
             check?.Invoke(item);
@@ -376,7 +376,7 @@ namespace BrandUp.Testing
         {
             ArgumentNullException.ThrowIfNull(domain);
 
-            var item = await domain.FindItemAsync<TId, TItem>(itemId, cancellationToken);
+            var item = await domain.FindItemAsync<TId, TItem>(itemId, cancellationToken).ConfigureAwait(false);
             if (item != null)
                 throw DomainAssert.Failure($"Expected item {typeof(TItem).Name} \"{itemId}\" to be absent, but it exists.");
         }

@@ -40,7 +40,7 @@ namespace BrandUp
             if (queryMetadata.IsSingle)
                 throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a single value. Use QueryAsync<TResult>(ISingleQuery<TResult>).");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.Query, query, null, serviceProvider, typeof(Result<IList<TRow>>), static errors => Result.Error<IList<TRow>>(errors), cancellationToken);
+            var context = new DomainBehaviorContext(DomainDispatchKind.Query, query, null, serviceProvider, typeof(Result<IList<TRow>>), static errors => new Result<IList<TRow>>(errors), cancellationToken);
 
             return await DispatchAsync<Result<IList<TRow>>>(context, async () =>
             {
@@ -68,7 +68,7 @@ namespace BrandUp
             if (!queryMetadata.IsSingle)
                 throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a list. Use QueryAsync<TRow>(IQuery<TRow>).");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.SingleQuery, query, null, serviceProvider, typeof(Result<TModel>), static errors => Result.Error<TModel>(errors), cancellationToken);
+            var context = new DomainBehaviorContext(DomainDispatchKind.SingleQuery, query, null, serviceProvider, typeof(Result<TModel>), static errors => new Result<TModel>(errors), cancellationToken);
 
             return await DispatchAsync<Result<TModel>>(context, async () =>
             {
@@ -94,7 +94,7 @@ namespace BrandUp
             if (commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendAsync<TResult>.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result), static errors => Result.Error(errors), cancellationToken);
+            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result), static errors => new Result(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result>(commandMetadata, context, null, command, cancellationToken).ConfigureAwait(false);
         }
@@ -109,7 +109,7 @@ namespace BrandUp
             if (!commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendAsync.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors), cancellationToken);
+            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result<TResultData>), static errors => new Result<TResultData>(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, context, null, command, cancellationToken).ConfigureAwait(false);
         }
@@ -126,7 +126,7 @@ namespace BrandUp
             if (commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendItemAsync<TId, TItem, TResult>.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result), static errors => Result.Error(errors), cancellationToken);
+            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result), static errors => new Result(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result>(commandMetadata, context, item, command, cancellationToken).ConfigureAwait(false);
         }
@@ -143,7 +143,7 @@ namespace BrandUp
             if (!commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendItemAsync<TId, TItem>.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors), cancellationToken);
+            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result<TResultData>), static errors => new Result<TResultData>(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, context, item, command, cancellationToken).ConfigureAwait(false);
         }
@@ -223,22 +223,10 @@ namespace BrandUp
             // The behavior set is fixed for the scope's lifetime - resolve once per DomainImpl.
             var pipeline = behaviors ??= [.. serviceProvider.GetServices<IDomainBehavior>()];
 
-            // First registered behavior is the outermost; index-walking shares one state
-            // capture per dispatch instead of rebuilding a nested delegate chain (each step's
-            // `next` delegate is still created lazily as the pipeline advances).
-            Task<Result> InvokePipelineAsync(int index)
-            {
-                if (index >= pipeline.Length)
-                    return handlerInvoke();
-
-                var behavior = pipeline[index];
-                return behavior.InvokeAsync(context, () => InvokePipelineAsync(index + 1), context.CancellationToken);
-            }
-
             Result result;
             try
             {
-                result = await InvokePipelineAsync(0).ConfigureAwait(false);
+                result = await new PipelineWalker(pipeline, context, handlerInvoke).InvokeNextAsync().ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -255,6 +243,49 @@ namespace BrandUp
 
             DomainDiagnostics.EndDispatch(activity, context, startTimestamp, result);
             return typedResult;
+        }
+
+        // One object and one delegate for the whole behavior walk: a mutable index replaces the
+        // fresh closure the naive recursive form would capture per pipeline step. First
+        // registered behavior is the outermost. next() is single-shot per behavior - a repeated
+        // sequential invocation (a retry-style behavior this pipeline does not support) throws
+        // loudly instead of resuming the walk past whatever short-circuited downstream, which
+        // would silently run the handler without the short-circuiting check.
+        sealed class PipelineWalker
+        {
+            readonly IDomainBehavior[] pipeline;
+            readonly DomainBehaviorContext context;
+            readonly DomainBehaviorDelegate handlerInvoke;
+            readonly DomainBehaviorDelegate next;
+            Task<Result>? lastStepTask;
+            int index;
+
+            public PipelineWalker(IDomainBehavior[] pipeline, DomainBehaviorContext context, DomainBehaviorDelegate handlerInvoke)
+            {
+                this.pipeline = pipeline;
+                this.context = context;
+                this.handlerInvoke = handlerInvoke;
+                next = InvokeNextAsync;
+            }
+
+            public Task<Result> InvokeNextAsync()
+            {
+                // A legitimate next() always runs while the previous step's task is still
+                // executing (or not yet materialized - the assignment below happens after the
+                // step's InvokeAsync returned). A completed last task means a behavior invoked
+                // its continuation again after awaiting the downstream chain's result.
+                if (lastStepTask is { IsCompleted: true })
+                    throw new InvalidOperationException("A behavior invoked next() more than once. next() may be invoked at most once per behavior.");
+
+                var step = index++;
+                if (step < pipeline.Length)
+                    return lastStepTask = pipeline[step].InvokeAsync(context, next, context.CancellationToken);
+
+                if (step > pipeline.Length)
+                    throw new InvalidOperationException("A behavior invoked next() more than once. next() may be invoked at most once per behavior.");
+
+                return handlerInvoke();
+            }
         }
     }
 }

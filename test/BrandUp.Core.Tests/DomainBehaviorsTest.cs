@@ -2,7 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using BrandUp.Behaviors;
+using BrandUp.Caching;
+using BrandUp.Commands;
 using BrandUp.Events;
 using BrandUp.Example.Behaviors;
 using BrandUp.Example.Commands;
@@ -469,6 +473,139 @@ namespace BrandUp
             Assert.NotNull(dispatchActivity);
             Assert.Equal("command", dispatchActivity.GetTagItem("brandup.kind"));
             Assert.Equal("success", dispatchActivity.GetTagItem("brandup.status"));
+        }
+
+        [Fact]
+        public async Task Behavior_InvokingNextTwice_FailsLoudly()
+        {
+            // The pipeline walker shares one continuation delegate per dispatch: a second next()
+            // past the handler must throw instead of silently re-running the handler.
+            using var serviceProvider = BuildServices(
+                options => options.AddCommand<ManualTxCommandHandler>(),
+                builder => builder.AddBehavior<DoubleNextBehavior>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => domain.SendAsync(new ManualTxCommand(), TestContext.Current.CancellationToken));
+        }
+
+        [Fact]
+        public async Task QueryCache_ConfiguredMemoryCacheOverload()
+        {
+            using var serviceProvider = BuildServices(
+                options => options.AddQuery<CachedCountQueryHandler>(),
+                builder => builder.AddQueryCaching(cache => cache.SizeLimit = 100));
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var log = scope.ServiceProvider.GetRequiredService<EventLog>();
+
+            Assert.IsType<MemoryQueryCache>(serviceProvider.GetRequiredService<IQueryCache>());
+
+            await domain.QueryAsync(new CachedCountQuery(), TestContext.Current.CancellationToken);
+            await domain.QueryAsync(new CachedCountQuery(), TestContext.Current.CancellationToken);
+
+            Assert.Single(log.Entries, "cached-query-exec");
+        }
+
+        [Fact]
+        public async Task Validation_RunsIValidatableObject()
+        {
+            // The default validator gates on validation attributes OR IValidatableObject: a
+            // command whose only validation lives in Validate() must still be checked.
+            using var serviceProvider = BuildServices(options => options.AddCommand<SelfValidatingCommandHandler>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            var invalid = await domain.SendAsync(new SelfValidatingCommand { Value = -1 }, TestContext.Current.CancellationToken);
+            Assert.False(invalid.IsSuccess);
+            Assert.Contains(invalid.Errors, error => error.Message == "Value must not be negative.");
+
+            var valid = await domain.SendAsync(new SelfValidatingCommand { Value = 1 }, TestContext.Current.CancellationToken);
+            Assert.True(valid.IsSuccess);
+        }
+
+        [Fact]
+        public async Task Behavior_InvokingNextTwice_AfterShortCircuit_FailsLoudly()
+        {
+            // The dangerous variant: the second next() must not resume the walk past the
+            // short-circuiting behavior and run the handler without its check.
+            using var serviceProvider = BuildServices(
+                options => options.AddCommand<PublishingCommandHandler>(),
+                builder => builder
+                    .AddBehavior<DoubleNextBehavior>()
+                    .AddBehavior<ShortCircuitBehavior>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+            var log = scope.ServiceProvider.GetRequiredService<EventLog>();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => domain.SendAsync(new PublishingCommand { Phone = "+1" }, TestContext.Current.CancellationToken));
+
+            Assert.Empty(log.Entries); // the handler never ran
+        }
+
+        [Fact]
+        public async Task Validation_SeesAttributeOnOverriddenBaseProperty()
+        {
+            // The validator's type gate must see [Required] declared on the base of an
+            // overridden virtual property (plain reflection IsDefined misses it).
+            using var serviceProvider = BuildServices(options => options.AddCommand<OverridingNamedCommandHandler>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            var invalid = await domain.SendAsync(new OverridingNamedCommand(), TestContext.Current.CancellationToken);
+            Assert.False(invalid.IsSuccess);
+
+            var valid = await domain.SendAsync(new OverridingNamedCommand { Name = "ok" }, TestContext.Current.CancellationToken);
+            Assert.True(valid.IsSuccess);
+        }
+
+        public sealed class DoubleNextBehavior : IDomainBehavior
+        {
+            public async Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+            {
+                await next();
+                return await next();
+            }
+        }
+
+        public abstract class NamedCommandBase : ICommand
+        {
+            [System.ComponentModel.DataAnnotations.Required]
+            public virtual string Name { get; set; }
+        }
+
+        public sealed class OverridingNamedCommand : NamedCommandBase
+        {
+            public override string Name { get; set; }
+        }
+
+        public sealed class OverridingNamedCommandHandler : ICommandHandler<OverridingNamedCommand>
+        {
+            public Task<Result> HandleAsync(OverridingNamedCommand command, CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(Result.Success());
+            }
+        }
+
+        public sealed class SelfValidatingCommand : ICommand, System.ComponentModel.DataAnnotations.IValidatableObject
+        {
+            public int Value { get; set; }
+
+            public IEnumerable<System.ComponentModel.DataAnnotations.ValidationResult> Validate(System.ComponentModel.DataAnnotations.ValidationContext validationContext)
+            {
+                if (Value < 0)
+                    yield return new System.ComponentModel.DataAnnotations.ValidationResult("Value must not be negative.", [nameof(Value)]);
+            }
+        }
+
+        public sealed class SelfValidatingCommandHandler : ICommandHandler<SelfValidatingCommand>
+        {
+            public Task<Result> HandleAsync(SelfValidatingCommand command, CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(Result.Success());
+            }
         }
     }
 }

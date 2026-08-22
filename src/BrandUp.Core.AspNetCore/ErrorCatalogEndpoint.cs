@@ -14,6 +14,11 @@ namespace BrandUp
     /// </summary>
     public static class ErrorCatalogEndpoint
     {
+        // Culture names come from the request (Accept-Language drives CurrentUICulture) -
+        // without a cap a scanner cycling culture names would grow the model cache for the
+        // process lifetime. Cultures beyond the cap are built per request, uncached.
+        const int CultureCacheLimit = 64;
+
         /// <summary>
         /// Maps a GET endpoint returning the registered error catalog. The catalog is immutable
         /// after startup, so the built model is cached per culture.
@@ -36,7 +41,12 @@ namespace BrandUp
                 var errorLocalizer = httpContext.RequestServices.GetService<IErrorLocalizer>();
                 var culture = CultureInfo.CurrentUICulture;
 
-                var model = modelCache.GetOrAdd(culture.Name, _ => BuildModel(catalog, errorLocalizer, culture));
+                if (!modelCache.TryGetValue(culture.Name, out var model))
+                {
+                    model = BuildModel(catalog, errorLocalizer, culture);
+                    if (modelCache.Count < CultureCacheLimit)
+                        modelCache.TryAdd(culture.Name, model);
+                }
 
                 return Results.Ok(model);
             });

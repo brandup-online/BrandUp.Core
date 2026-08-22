@@ -120,7 +120,7 @@ namespace BrandUp
         public async Task AbandonedClaim_ExpiresWithLease()
         {
             var timeProvider = new TestTimeProvider();
-            var store = new InMemoryIdempotencyStore(claimLease: TimeSpan.FromMinutes(5), timeProvider: timeProvider);
+            using var store = new InMemoryIdempotencyStore(claimLease: TimeSpan.FromMinutes(5), timeProvider: timeProvider);
 
             Assert.Null(await store.TryClaimAsync("stuck", TestContext.Current.CancellationToken));
 

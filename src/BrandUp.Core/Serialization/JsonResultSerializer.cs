@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -20,36 +21,88 @@ namespace BrandUp.Serialization
 
         readonly JsonSerializerOptions options = options ?? JsonSerializerOptions.Web;
 
+        // The envelope property names, converted once through the options' naming policy so the
+        // hand-written writer below stays in sync with what Deserialize's record binding expects.
+        readonly string successName = ConvertName(nameof(ResultEnvelope.Success), options);
+        readonly string dataName = ConvertName(nameof(ResultEnvelope.Data), options);
+        readonly string errorsName = ConvertName(nameof(ResultEnvelope.Errors), options);
+        readonly string codeName = ConvertName(nameof(ErrorEnvelope.Code), options);
+        readonly string messageName = ConvertName(nameof(ErrorEnvelope.Message), options);
+        readonly string kindName = ConvertName(nameof(ErrorEnvelope.Kind), options);
+        readonly string argumentsName = ConvertName(nameof(ErrorEnvelope.Arguments), options);
+
         /// <inheritdoc/>
         public byte[] Serialize(Result result)
         {
             ArgumentNullException.ThrowIfNull(result);
 
-            var resultType = result.GetType();
-            JsonElement? data = null;
-            ErrorEnvelope[]? errors = null;
-
-            if (result.IsSuccess)
+            // The envelope is written directly: routing the success data through
+            // SerializeToElement would materialize a JsonElement DOM of the whole payload just to
+            // re-write it into the final buffer - several transient copies for large results.
+            var buffer = new ArrayBufferWriter<byte>(256);
+            using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions
             {
-                if (IsGenericResult(resultType))
+                Encoder = options.Encoder,
+                Indented = options.WriteIndented,
+                IndentCharacter = options.IndentCharacter,
+                IndentSize = options.IndentSize,
+                // Mirror the serializer's depth contract (0 means its 64 default), not the
+                // writer's own 1000 default.
+                MaxDepth = options.MaxDepth == 0 ? 64 : options.MaxDepth
+            }))
+            {
+                writer.WriteStartObject();
+                writer.WriteBoolean(successName, result.IsSuccess);
+
+                if (result.IsSuccess)
                 {
-                    var value = dataGetters.GetOrAdd(resultType, BuildDataGetter)(result);
-                    if (value != null)
-                        data = JsonSerializer.SerializeToElement(value, resultType.GetGenericArguments()[0], options);
+                    var resultType = result.GetType();
+                    if (IsGenericResult(resultType))
+                    {
+                        var value = dataGetters.GetOrAdd(resultType, BuildDataGetter)(result);
+                        if (value != null)
+                        {
+                            writer.WritePropertyName(dataName);
+                            JsonSerializer.Serialize(writer, value, resultType.GetGenericArguments()[0], options);
+                        }
+                    }
                 }
-            }
-            else
-            {
-                errors = [.. result.Errors.Select(error => new ErrorEnvelope(
-                    error.Code,
-                    error.Message,
-                    error.Kind,
-                    error.Arguments.Count == 0
-                        ? null
-                        : [.. error.Arguments.Select(argument => JsonSerializer.SerializeToElement(argument, argument?.GetType() ?? typeof(object), options))]))];
+                else
+                {
+                    writer.WritePropertyName(errorsName);
+                    writer.WriteStartArray();
+                    foreach (var error in result.Errors)
+                    {
+                        writer.WriteStartObject();
+                        writer.WriteString(codeName, error.Code);
+                        writer.WriteString(messageName, error.Message);
+                        writer.WritePropertyName(kindName);
+                        JsonSerializer.Serialize(writer, error.Kind, options);
+
+                        var arguments = error.Arguments;
+                        if (arguments.Count > 0)
+                        {
+                            writer.WritePropertyName(argumentsName);
+                            writer.WriteStartArray();
+                            foreach (var argument in arguments)
+                                JsonSerializer.Serialize(writer, argument, argument?.GetType() ?? typeof(object), options);
+                            writer.WriteEndArray();
+                        }
+
+                        writer.WriteEndObject();
+                    }
+                    writer.WriteEndArray();
+                }
+
+                writer.WriteEndObject();
             }
 
-            return JsonSerializer.SerializeToUtf8Bytes(new ResultEnvelope(result.IsSuccess, data, errors), options);
+            return buffer.WrittenSpan.ToArray();
+        }
+
+        static string ConvertName(string name, JsonSerializerOptions? options)
+        {
+            return (options ?? JsonSerializerOptions.Web).PropertyNamingPolicy?.ConvertName(name) ?? name;
         }
 
         /// <inheritdoc/>

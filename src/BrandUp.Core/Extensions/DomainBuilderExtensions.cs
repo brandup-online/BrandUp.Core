@@ -108,6 +108,32 @@ namespace BrandUp
         }
 
         /// <summary>
+        /// Enables caching of queries declaring <see cref="ICachedQuery"/> with a configured
+        /// in-process <see cref="MemoryQueryCache"/> — set
+        /// <see cref="Microsoft.Extensions.Caching.Memory.MemoryCacheOptions.SizeLimit"/> and
+        /// scanning settings here. The configured options are taken as-is: leaving
+        /// <c>SizeLimit</c> unset opts into an unbounded cache deliberately (the parameterless
+        /// overload bounds it to <see cref="MemoryQueryCache.DefaultSizeLimit"/> entries).
+        /// </summary>
+        /// <param name="builder">Domain builder.</param>
+        /// <param name="configureCache">Configures the memory cache options.</param>
+        /// <returns>The same builder, for chaining.</returns>
+        public static IDomainBuilder AddQueryCaching(this IDomainBuilder builder, Action<Microsoft.Extensions.Caching.Memory.MemoryCacheOptions> configureCache)
+        {
+            ArgumentNullException.ThrowIfNull(builder);
+            ArgumentNullException.ThrowIfNull(configureCache);
+
+            builder.Services.TryAddSingleton<IQueryCache>(_ =>
+            {
+                var cacheOptions = new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions();
+                configureCache(cacheOptions);
+                return new MemoryQueryCache(cacheOptions);
+            });
+
+            return builder.AddBehavior<QueryCacheBehavior>();
+        }
+
+        /// <summary>
         /// Enables caching of queries declaring <see cref="ICachedQuery"/> with a custom
         /// <see cref="IQueryCache"/> implementation.
         /// </summary>
@@ -292,7 +318,9 @@ namespace BrandUp
         /// <see cref="IIdempotentCommand"/> without <see cref="AddIdempotency(IDomainBuilder)"/>,
         /// <see cref="IDispatchTimeout"/> without <see cref="AddDispatchTimeouts"/>).
         /// Checks run against the final registrations, so the call order relative to other
-        /// <c>Add*</c> calls does not matter.
+        /// <c>Add*</c> calls does not matter. Validation materializes the domain configuration,
+        /// which also moves the one-time handler metadata build (reflection scans and compiled
+        /// invokers) from the first dispatch to host startup — first-request latency stays flat.
         /// </summary>
         /// <param name="builder">Domain builder.</param>
         /// <returns>The same builder, for chaining.</returns>

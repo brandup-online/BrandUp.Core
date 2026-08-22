@@ -13,11 +13,17 @@ namespace BrandUp.Behaviors
     public sealed class TimeoutBehavior : IDomainBehavior
     {
         /// <inheritdoc/>
-        public async Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
+        public Task<Result> InvokeAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, CancellationToken cancellationToken = default)
         {
+            // Requests without a timeout pass through with no async state machine.
             if (context.Request is not IDispatchTimeout { Timeout: var timeout } || timeout <= TimeSpan.Zero)
-                return await next().ConfigureAwait(false);
+                return next();
 
+            return InvokeWithTimeoutAsync(context, next, timeout, cancellationToken);
+        }
+
+        static async Task<Result> InvokeWithTimeoutAsync(DomainBehaviorContext context, DomainBehaviorDelegate next, TimeSpan timeout, CancellationToken cancellationToken)
+        {
             using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutSource.CancelAfter(timeout);
 

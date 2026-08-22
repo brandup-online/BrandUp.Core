@@ -5,6 +5,10 @@
     /// </summary>
     public class Result
     {
+        // A successful dataless result is immutable and stateless - one instance serves all
+        // callers.
+        static readonly Result successResult = new();
+
         readonly IError[]? errors;
 
         /// <summary>
@@ -29,7 +33,9 @@
             if (errors.Count == 0)
                 throw new ArgumentException("Errors required.", nameof(errors));
 
-            this.errors = [.. errors];
+            // Takes ownership of an array: every internal caller passes a freshly built one and
+            // never retains it. Any other list is defensively copied.
+            this.errors = errors as IError[] ?? [.. errors];
         }
 
         #region Success
@@ -39,7 +45,7 @@
         /// </summary>
         public static Result Success()
         {
-            return new Result();
+            return successResult;
         }
 
         /// <summary>
@@ -64,10 +70,13 @@
         public static Result Error(IEnumerable<IError> errors)
         {
             ArgumentNullException.ThrowIfNull(errors);
-            if (!errors.Any())
+
+            // One enumeration, one copy: the array is built here and owned by the result.
+            var copied = errors.ToArray();
+            if (copied.Length == 0)
                 throw new ArgumentException("Errors is empty", nameof(errors));
 
-            return new Result(new List<IError>(errors));
+            return new Result(copied);
         }
 
         /// <summary>
@@ -79,10 +88,12 @@
         public static Result<TData> Error<TData>(IEnumerable<IError> errors)
         {
             ArgumentNullException.ThrowIfNull(errors);
-            if (!errors.Any())
+
+            var copied = errors.ToArray();
+            if (copied.Length == 0)
                 throw new ArgumentException("Errors is empty", nameof(errors));
 
-            return new Result<TData>(new List<IError>(errors));
+            return new Result<TData>(copied);
         }
 
         /// <summary>
