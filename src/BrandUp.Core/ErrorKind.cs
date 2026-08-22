@@ -12,7 +12,13 @@ namespace BrandUp
         /// <summary>The request is malformed or fails validation rules.</summary>
         Validation,
 
-        /// <summary>The addressed entity does not exist.</summary>
+        /// <summary>
+        /// The addressed entity does not exist. Reserved for the primary subject of the
+        /// operation — the entity the caller addresses directly (over HTTP, typically by the
+        /// URL). A missing entity that is only referenced from the request payload is a
+        /// <see cref="Validation"/> error: the request is wrong, not the addressed resource
+        /// absent — transports map it to 400, not 404.
+        /// </summary>
         NotFound,
 
         /// <summary>The caller is not authenticated.</summary>

@@ -1,4 +1,3 @@
-using BrandUp.Builder;
 using BrandUp.Events;
 using BrandUp.Transactions;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +41,7 @@ namespace BrandUp.Testing
             builder.Services.AddSingleton<IEventOutbox>(provider => provider.GetRequiredService<TestEventOutbox>());
 
             // The outbox rerouting is an explicit opt-in, not a registration side effect.
-            return builder.AddEventOutbox();
+            return builder.UseEventOutbox();
         }
     }
 }

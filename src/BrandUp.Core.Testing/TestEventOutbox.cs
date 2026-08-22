@@ -10,7 +10,7 @@ namespace BrandUp.Testing
     /// pair assertions with <see cref="TestTransactionFactory.Operations"/> or call
     /// <see cref="Clear"/> between cases when that matters.
     /// </summary>
-    public class TestEventOutbox : IEventOutbox
+    public sealed class TestEventOutbox : IEventOutbox
     {
         readonly List<IDomainEvent> enqueued = [];
 

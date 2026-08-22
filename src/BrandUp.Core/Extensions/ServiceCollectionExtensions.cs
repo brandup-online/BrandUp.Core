@@ -1,5 +1,4 @@
-﻿using BrandUp.Builder;
-using BrandUp.Items;
+﻿using BrandUp.Items;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace BrandUp
@@ -7,7 +6,7 @@ namespace BrandUp
     /// <summary>
     /// <see cref="IServiceCollection"/> extensions for registering the domain and its item providers.
     /// </summary>
-    public static class IServiceCollectionExtensions
+    public static class ServiceCollectionExtensions
     {
         readonly static Type ItemProviderDefinitionType = typeof(IItemProvider<,>);
 
@@ -51,7 +50,7 @@ namespace BrandUp
         /// <param name="services">Service collection.</param>
         /// <returns>The same service collection, for chaining.</returns>
         /// <exception cref="InvalidOperationException">The type does not implement an item provider interface.</exception>
-        public static IServiceCollection AddDomainItem<TProvider>(this IServiceCollection services)
+        public static IServiceCollection AddItemProvider<TProvider>(this IServiceCollection services)
         {
             ArgumentNullException.ThrowIfNull(services);
 
@@ -71,7 +70,7 @@ namespace BrandUp
                 }
             }
 
-            throw new InvalidOperationException($"Type \"{providerType.AssemblyQualifiedName}\" is do not implementation interface {ItemProviderDefinitionType.FullName}.");
+            throw new InvalidOperationException($"Type \"{providerType.AssemblyQualifiedName}\" does not implement interface {ItemProviderDefinitionType.FullName}.");
         }
     }
 }

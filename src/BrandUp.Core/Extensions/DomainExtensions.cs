@@ -6,7 +6,7 @@ namespace BrandUp
     /// <summary>
     /// <see cref="IDomain"/> convenience extensions that resolve the target item by id before dispatching.
     /// </summary>
-    public static class IDomainExtensions
+    public static class DomainExtensions
     {
         /// <summary>
         /// Loads the item by id and executes the command against it, without producing result data.
@@ -17,7 +17,8 @@ namespace BrandUp
         /// <param name="itemId">Identifier of the target item.</param>
         /// <param name="command">Command to execute.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        /// <returns>A success or error <see cref="Result"/>; an error if the item is not found.</returns>
+        /// <returns>A success or error <see cref="Result"/>; the cataloged
+        /// <see cref="DomainErrors.ItemNotFound"/> error if the item is not found.</returns>
         public static async Task<Result> SendItemAsync<TId, TItem>(this IDomain domain, TId itemId, IItemCommand<TItem> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
@@ -28,7 +29,7 @@ namespace BrandUp
 
             var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
             if (item == null)
-                return Result.Error(string.Empty, $"Not found item by ID \"{itemId}\".");
+                return Result.Error(DomainErrors.ItemNotFound, itemId);
 
             return await domain.SendItemAsync(item, command, cancellationToken);
         }
@@ -43,7 +44,8 @@ namespace BrandUp
         /// <param name="itemId">Identifier of the target item.</param>
         /// <param name="command">Command to execute.</param>
         /// <param name="cancellationToken">Token to cancel the operation.</param>
-        /// <returns>A <see cref="Result{TData}"/> with the produced data or errors; an error if the item is not found.</returns>
+        /// <returns>A <see cref="Result{TData}"/> with the produced data or errors; the cataloged
+        /// <see cref="DomainErrors.ItemNotFound"/> error if the item is not found.</returns>
         public static async Task<Result<TResultData>> SendItemAsync<TId, TItem, TResultData>(this IDomain domain, TId itemId, IItemCommand<TItem, TResultData> command, CancellationToken cancellationToken = default)
             where TItem : class, IItem<TId>
         {
@@ -54,7 +56,7 @@ namespace BrandUp
 
             var item = await itemProvider.FindByIdAsync(itemId, cancellationToken);
             if (item == null)
-                return Result.Error<TResultData>(string.Empty, $"Not found item by ID \"{itemId}\".");
+                return Result.Error<TResultData>(DomainErrors.ItemNotFound, itemId);
 
             return await domain.SendItemAsync(item, command, cancellationToken);
         }

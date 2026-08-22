@@ -23,18 +23,6 @@ namespace BrandUp
 
     public class ErrorCatalogTest
     {
-        // Dictionary-backed IErrorLocalizer: culture name -> code -> template.
-        sealed class FakeErrorLocalizer(Dictionary<string, Dictionary<string, string>> resources) : IErrorLocalizer
-        {
-            public string Localize(IError error, CultureInfo culture)
-            {
-                if (!resources.TryGetValue(culture.Name, out var templates) || !templates.TryGetValue(error.Code, out var template))
-                    return null;
-
-                return error.Arguments.Count > 0 ? string.Format(culture, template, error.Arguments.ToArray()) : template;
-            }
-        }
-
         [Fact]
         public void ResultError_FromDescriptor_FormatsInvariantAndKeepsArguments()
         {
@@ -92,6 +80,29 @@ namespace BrandUp
             var english = result.ToProblemDetails(localizer, CultureInfo.GetCultureInfo("en"));
             var englishError = Assert.Single(Assert.IsType<object[]>(english.Extensions["errors"]));
             Assert.Contains("Order 42 not found.", englishError.ToString());
+        }
+
+        [Fact]
+        public void LocalizeOrInvariant_LocalizesAndFallsBack()
+        {
+            var localizer = new FakeErrorLocalizer(new Dictionary<string, Dictionary<string, string>>
+            {
+                ["ru"] = new() { ["order-not-found"] = "Заказ {0} не найден." }
+            });
+            var error = ExampleErrors.OrderNotFound.CreateError(42);
+
+            Assert.Equal("Заказ 42 не найден.", error.LocalizeOrInvariant(localizer, CultureInfo.GetCultureInfo("ru")));
+
+            // No translation for the culture, and no localizer at all: the invariant message.
+            Assert.Equal("Order 42 not found.", error.LocalizeOrInvariant(localizer, CultureInfo.GetCultureInfo("en")));
+            Assert.Equal("Order 42 not found.", error.LocalizeOrInvariant(null, CultureInfo.GetCultureInfo("ru")));
+
+            // A resource row left blank is not a translation: it must not become an empty message.
+            var blank = new FakeErrorLocalizer(new Dictionary<string, Dictionary<string, string>>
+            {
+                ["ru"] = new() { ["order-not-found"] = string.Empty }
+            });
+            Assert.Equal("Order 42 not found.", error.LocalizeOrInvariant(blank, CultureInfo.GetCultureInfo("ru")));
         }
 
         [Fact]

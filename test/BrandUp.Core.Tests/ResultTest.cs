@@ -15,7 +15,7 @@ namespace BrandUp
             Assert.True(result.IsSuccess);
             Assert.NotNull(result.Errors);
             Assert.Empty(result.Errors);
-            Assert.Equal(0, result.CountErrors);
+            Assert.Equal(0, result.ErrorCount);
         }
 
         [Fact]
@@ -24,7 +24,7 @@ namespace BrandUp
             var result = Result.Error("code", "message");
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(1, result.CountErrors);
+            Assert.Equal(1, result.ErrorCount);
 
             var error = result.Errors.Single();
             Assert.Equal("code", error.Code);
@@ -37,27 +37,27 @@ namespace BrandUp
             var result = Result.Error([new Error("a", "1"), new Error("b", "2")]);
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(2, result.CountErrors);
+            Assert.Equal(2, result.ErrorCount);
         }
 
         [Fact]
-        public void AsObjectiveErrors_PreservesErrors()
+        public void AsErrorResult_PreservesErrors()
         {
             var result = Result.Error("code", "message");
 
-            var typed = result.AsObjectiveErrors<string>();
+            var typed = result.AsErrorResult<string>();
 
             Assert.False(typed.IsSuccess);
-            Assert.Equal(1, typed.CountErrors);
+            Assert.Equal(1, typed.ErrorCount);
             Assert.Equal("code", typed.Errors.Single().Code);
         }
 
         [Fact]
-        public void AsObjectiveErrors_OnSuccess_Throws()
+        public void AsErrorResult_OnSuccess_Throws()
         {
             var result = Result.Success();
 
-            Assert.Throws<ArgumentException>(() => result.AsObjectiveErrors<string>());
+            Assert.Throws<ArgumentException>(() => result.AsErrorResult<string>());
         }
 
         [Fact]

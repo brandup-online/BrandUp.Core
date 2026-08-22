@@ -8,6 +8,15 @@ namespace BrandUp.Behaviors
     /// to the parent; a scope inherited by a flow that outlives the dispatch (a deferred event
     /// handler, a fire-and-forget task) reads as inactive once ended.
     /// </summary>
+    /// <remarks>
+    /// This scope and <c>DomainEventPublisher.CommandScope</c> are two deliberate instances of
+    /// the same "defer until the outermost command succeeds" primitive, kept separate on purpose:
+    /// this one is process-wide (<see cref="DomainBehaviorContext.IsInsideCommand"/> must hold
+    /// across container boundaries) and runs opaque completion actions, while the event scope is
+    /// owner-checked per publisher and flushed with per-handler logging. When fixing an edge case
+    /// here (late-finishing nested command, dead-scope fallback), check the event scope for the
+    /// same case.
+    /// </remarks>
     internal sealed class CommandDispatchScope
     {
         static readonly AsyncLocal<CommandDispatchScope?> current = new();
@@ -50,7 +59,10 @@ namespace BrandUp.Behaviors
 
         /// <summary>
         /// Queues work to run after the outermost command completes successfully. Discarded when
-        /// this or any enclosing command fails.
+        /// this or any enclosing command fails. An action's exception is swallowed at execution:
+        /// the command has already succeeded and committed, so post-completion work must never
+        /// turn it into an error for the caller (the rule deferred event handlers follow too) -
+        /// log failures inside the action.
         /// </summary>
         public void OnCompleted(Func<ValueTask> action)
         {
@@ -92,7 +104,18 @@ namespace BrandUp.Behaviors
                 return;
 
             foreach (var action in pending)
-                await action().ConfigureAwait(false);
+            {
+                try
+                {
+                    await action().ConfigureAwait(false);
+                }
+                catch
+                {
+                    // The command already completed successfully: a completion action failure
+                    // must not surface it as an error to the caller. Registrars log their own
+                    // failures (see QueryCacheBehavior); this catch is the last-resort guarantee.
+                }
+            }
         }
 
         bool TryPromote(List<Func<ValueTask>> actions)

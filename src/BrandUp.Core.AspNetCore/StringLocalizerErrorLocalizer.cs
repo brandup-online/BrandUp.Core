@@ -18,7 +18,7 @@ namespace BrandUp
     /// also reports <see langword="null"/> instead of failing the response: translations are
     /// data, not code. Per-culture template sets are cached for the lifetime of the instance.
     /// </summary>
-    public class StringLocalizerErrorLocalizer(IStringLocalizer localizer) : IErrorLocalizer
+    public sealed class StringLocalizerErrorLocalizer(IStringLocalizer localizer) : IErrorLocalizer
     {
         readonly IStringLocalizer localizer = localizer ?? throw new ArgumentNullException(nameof(localizer));
         readonly ConcurrentDictionary<string, Dictionary<string, string>> templatesByCulture = new();
@@ -85,9 +85,9 @@ namespace BrandUp
     }
 
     /// <summary>
-    /// <see cref="IServiceCollection"/> extensions for error localization.
+    /// Registration extensions for error localization.
     /// </summary>
-    public static class ErrorLocalizationServiceCollectionExtensions
+    public static class ErrorLocalizationExtensions
     {
         /// <summary>
         /// Registers <see cref="StringLocalizerErrorLocalizer"/> as the <see cref="IErrorLocalizer"/>
@@ -105,6 +105,23 @@ namespace BrandUp
             services.TryAddSingleton<IErrorLocalizer>(provider => new StringLocalizerErrorLocalizer(provider.GetRequiredService<IStringLocalizer<TResource>>()));
 
             return services;
+        }
+
+        /// <summary>
+        /// Registers <see cref="StringLocalizerErrorLocalizer"/> as the <see cref="IErrorLocalizer"/>
+        /// on the domain builder, keeping the configuration chain (see
+        /// <see cref="AddErrorLocalization{TResource}(IServiceCollection)"/>).
+        /// </summary>
+        /// <typeparam name="TResource">Resource marker type the .resx files are attached to.</typeparam>
+        /// <param name="builder">Domain builder.</param>
+        /// <returns>The same builder, for chaining.</returns>
+        public static IDomainBuilder AddErrorLocalization<TResource>(this IDomainBuilder builder)
+        {
+            ArgumentNullException.ThrowIfNull(builder);
+
+            builder.Services.AddErrorLocalization<TResource>();
+
+            return builder;
         }
     }
 }

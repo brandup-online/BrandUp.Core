@@ -22,6 +22,8 @@
     <ProjectReference Include="..\..\src\BrandUp.Core.AspNetCore\BrandUp.Core.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\BrandUp.Core.Testing\BrandUp.Core.Testing.csproj" />
     <ProjectReference Include="..\..\src\BrandUp.Core.Testing.xUnit\BrandUp.Core.Testing.xUnit.csproj" />
+    <ProjectReference Include="..\..\src\BrandUp.Core.FluentValidation\BrandUp.Core.FluentValidation.csproj" />
+    <ProjectReference Include="..\..\src\BrandUp.Core.Outbox.MongoDB\BrandUp.Core.Outbox.MongoDB.csproj" />
   </ItemGroup>
 
 </Project>

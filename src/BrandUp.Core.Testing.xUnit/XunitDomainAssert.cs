@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using BrandUp.Testing;
 using Xunit.Sdk;
 
 namespace BrandUp.Testing.Xunit

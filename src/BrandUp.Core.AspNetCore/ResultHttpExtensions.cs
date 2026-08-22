@@ -2,6 +2,8 @@ using System.Globalization;
 using BrandUp.Validation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BrandUp
 {
@@ -42,9 +44,9 @@ namespace BrandUp
             problemDetails.Extensions["errors"] = result.Errors
                 .Select(error =>
                 {
-                    var message = LocalizeOrInvariant(errorLocalizer, error, culture);
+                    var message = error.LocalizeOrInvariant(errorLocalizer, culture);
 
-                    return error is CommandValidationError validationError
+                    return error is ValidationError validationError
                         ? (object)new { code = error.Code, message, members = validationError.MemberNames }
                         : new { code = error.Code, message };
                 })
@@ -55,7 +57,7 @@ namespace BrandUp
 
         /// <summary>
         /// Maps the result to a minimal-API <see cref="IResult"/>: 204 No Content on success, or a
-        /// problem response built by <see cref="ToProblemDetails"/>.
+        /// problem response built by <see cref="ToProblemDetails(Result, IErrorLocalizer?, CultureInfo?)"/>.
         /// </summary>
         /// <param name="result">Result to map.</param>
         /// <param name="errorLocalizer">Localizer resolving messages by error code.</param>
@@ -69,7 +71,7 @@ namespace BrandUp
 
         /// <summary>
         /// Maps the result to a minimal-API <see cref="IResult"/>: 200 OK with the data on success,
-        /// or a problem response built by <see cref="ToProblemDetails"/>.
+        /// or a problem response built by <see cref="ToProblemDetails(Result, IErrorLocalizer?, CultureInfo?)"/>.
         /// </summary>
         /// <typeparam name="TData">Type of the carried data.</typeparam>
         /// <param name="result">Result to map.</param>
@@ -119,11 +121,162 @@ namespace BrandUp
             return new ObjectResult(problemDetails) { StatusCode = problemDetails.Status };
         }
 
-        // The one localize-with-fallback rule, shared with the error catalog endpoint.
-        internal static string LocalizeOrInvariant(IErrorLocalizer? errorLocalizer, IError error, CultureInfo culture)
+        /// <summary>
+        /// Builds a <see cref="ProblemDetails"/> from a failed result, resolving the registered
+        /// <see cref="IErrorLocalizer"/> (if any) from the request services and localizing for
+        /// the current request culture.
+        /// </summary>
+        /// <param name="result">Failed result.</param>
+        /// <param name="httpContext">Current HTTP context.</param>
+        /// <exception cref="InvalidOperationException">The result is successful.</exception>
+        public static ProblemDetails ToProblemDetails(this Result result, HttpContext httpContext)
         {
-            return errorLocalizer?.Localize(error, culture) ?? error.Message;
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            return result.ToProblemDetails(ResolveLocalizer(httpContext));
         }
+
+        /// <summary>
+        /// Maps the result to a minimal-API <see cref="IResult"/>, resolving the registered
+        /// <see cref="IErrorLocalizer"/> (if any) from the request services.
+        /// </summary>
+        /// <param name="result">Result to map.</param>
+        /// <param name="httpContext">Current HTTP context.</param>
+        public static IResult ToHttpResult(this Result result, HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            return result.ToHttpResult(ResolveLocalizer(httpContext));
+        }
+
+        /// <summary>
+        /// Maps the result to a minimal-API <see cref="IResult"/> with data, resolving the
+        /// registered <see cref="IErrorLocalizer"/> (if any) from the request services.
+        /// </summary>
+        /// <typeparam name="TData">Type of the carried data.</typeparam>
+        /// <param name="result">Result to map.</param>
+        /// <param name="httpContext">Current HTTP context.</param>
+        public static IResult ToHttpResult<TData>(this Result<TData> result, HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            return result.ToHttpResult(ResolveLocalizer(httpContext));
+        }
+
+        /// <summary>
+        /// Maps the result to an MVC <see cref="ActionResult"/>, resolving the registered
+        /// <see cref="IErrorLocalizer"/> (if any) from the request services.
+        /// </summary>
+        /// <param name="result">Result to map.</param>
+        /// <param name="httpContext">Current HTTP context.</param>
+        public static ActionResult ToActionResult(this Result result, HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            return result.ToActionResult(ResolveLocalizer(httpContext));
+        }
+
+        /// <summary>
+        /// Maps the result to an MVC <see cref="ActionResult{TValue}"/>, resolving the registered
+        /// <see cref="IErrorLocalizer"/> (if any) from the request services.
+        /// </summary>
+        /// <typeparam name="TData">Type of the carried data.</typeparam>
+        /// <param name="result">Result to map.</param>
+        /// <param name="httpContext">Current HTTP context.</param>
+        public static ActionResult<TData> ToActionResult<TData>(this Result<TData> result, HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            return result.ToActionResult(ResolveLocalizer(httpContext));
+        }
+
+        /// <summary>
+        /// Adds the errors of a failed result to MVC model state, resolving the registered
+        /// <see cref="IErrorLocalizer"/> (if any) from the request services (see
+        /// <see cref="AddToModelState(Result, ModelStateDictionary, IErrorLocalizer?, CultureInfo?)"/>).
+        /// </summary>
+        /// <param name="result">Failed result.</param>
+        /// <param name="modelState">Model state to add the errors to.</param>
+        /// <param name="httpContext">Current HTTP context.</param>
+        /// <exception cref="InvalidOperationException">The result is successful.</exception>
+        public static void AddToModelState(this Result result, ModelStateDictionary modelState, HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            result.AddToModelState(modelState, ResolveLocalizer(httpContext));
+        }
+
+        // The one place that knows how the HttpContext overloads obtain the localizer.
+        static IErrorLocalizer? ResolveLocalizer(HttpContext httpContext)
+        {
+            return httpContext.RequestServices.GetService<IErrorLocalizer>();
+        }
+
+        /// <summary>
+        /// Adds the errors of a failed result to MVC model state so the controller can answer
+        /// with <c>ValidationProblem()</c> — the same <see cref="ValidationProblemDetails"/>
+        /// contract as <c>[ApiController]</c> model validation. For APIs that keep their own
+        /// established error format and status mapping, taking only the stable codes and
+        /// localization from the domain. Validation errors carrying member names are keyed by
+        /// each member (matching automatic model validation); every other error is keyed by its
+        /// <see cref="IError.Code"/>, which is empty for a member-less validation error and lands
+        /// it under the model-level key, again as automatic validation does.
+        /// </summary>
+        /// <remarks>
+        /// <see cref="IError.Kind"/> is deliberately ignored: model state has no place to carry it
+        /// and <c>ValidationProblem()</c> always answers 400. Route the kinds that are not about
+        /// the request — <see cref="ErrorKind.NotFound"/>, <see cref="ErrorKind.Unauthorized"/>,
+        /// <see cref="ErrorKind.Forbidden"/>, <see cref="ErrorKind.Conflict"/>,
+        /// <see cref="ErrorKind.Internal"/> — to their own status before calling this, or an
+        /// internal failure is reported to the client as a validation problem (see
+        /// <see cref="ToHttpStatusCode"/>).
+        /// </remarks>
+        /// <param name="result">Failed result.</param>
+        /// <param name="modelState">Model state to add the errors to.</param>
+        /// <param name="errorLocalizer">Localizer resolving messages by error code; <see langword="null"/> keeps invariant messages.</param>
+        /// <param name="culture">Target culture; <see langword="null"/> uses <see cref="CultureInfo.CurrentUICulture"/>.</param>
+        /// <exception cref="InvalidOperationException">The result is successful.</exception>
+        public static void AddToModelState(this Result result, ModelStateDictionary modelState, IErrorLocalizer? errorLocalizer = null, CultureInfo? culture = null)
+        {
+            ArgumentNullException.ThrowIfNull(result);
+            ArgumentNullException.ThrowIfNull(modelState);
+            if (result.IsSuccess)
+                throw new InvalidOperationException("A successful result has no errors to add.");
+
+            // Resolved once so every message of one response speaks the same culture.
+            culture ??= CultureInfo.CurrentUICulture;
+
+            foreach (var error in result.Errors)
+            {
+                var message = error.LocalizeOrInvariant(errorLocalizer, culture);
+                var keyedByMember = false;
+
+                if (error is ValidationError validationError)
+                {
+                    // One pass, and blank names are skipped rather than handed to AddModelError:
+                    // it throws on a null key, which would turn the error response into a 500.
+                    foreach (var memberName in validationError.MemberNames)
+                    {
+                        if (string.IsNullOrEmpty(memberName))
+                            continue;
+
+                        modelState.AddModelError(memberName, message);
+                        keyedByMember = true;
+                    }
+                }
+
+                if (!keyedByMember)
+                    modelState.AddModelError(error.Code, message);
+            }
+        }
+
+        /// <summary>
+        /// The HTTP status the package maps the error kind to. Exposed so an API that keeps its
+        /// own response format still derives statuses from the one mapping table, instead of a
+        /// copied switch that silently answers 400 for every kind added to the enum later.
+        /// </summary>
+        /// <param name="kind">Semantic category of the error.</param>
+        public static int ToHttpStatusCode(this ErrorKind kind) => MapKind(kind).StatusCode;
 
         // Single mapping table for status and title: two parallel switches over ErrorKind
         // would drift when the enum grows. Every named member is listed explicitly; the discard

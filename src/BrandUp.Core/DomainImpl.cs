@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace BrandUp
 {
-    internal class DomainImpl(IOptions<DomainOptions> options, IServiceProvider serviceProvider, DomainEventPublisher eventPublisher) : IDomain
+    internal sealed class DomainImpl(IOptions<DomainOptions> options, IServiceProvider serviceProvider, DomainEventPublisher eventPublisher) : IDomain
     {
         readonly DomainOptions options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         readonly IServiceProvider serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
@@ -20,7 +20,7 @@ namespace BrandUp
 
         public TItemProvider GetItemProvider<TItemProvider>()
         {
-            return serviceProvider.GetService<TItemProvider>() ?? throw new InvalidOperationException($"Not found {typeof(TItemProvider).FullName} item provider.");
+            return serviceProvider.GetService<TItemProvider>() ?? throw new InvalidOperationException($"Item provider \"{typeof(TItemProvider).FullName}\" is not registered.");
         }
 
         public async Task<TItem?> FindItemAsync<TId, TItem>(TId itemId, CancellationToken cancellationToken = default)
@@ -36,18 +36,18 @@ namespace BrandUp
 
             var queryType = query.GetType();
             if (!options.TryGetQueryHandler(queryType, out QueryMetadata? queryMetadata))
-                throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
+                throw new InvalidOperationException($"Query handler for query type \"{queryType.AssemblyQualifiedName}\" is not registered.");
             if (queryMetadata.IsSingle)
                 throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a single value. Use QueryAsync<TResult>(ISingleQuery<TResult>).");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.Query, query, null, serviceProvider, typeof(Result<IList<TRow>>), static errors => Result.Error<IList<TRow>>(errors));
+            var context = new DomainBehaviorContext(DomainDispatchKind.Query, query, null, serviceProvider, typeof(Result<IList<TRow>>), static errors => Result.Error<IList<TRow>>(errors), cancellationToken);
 
             return await DispatchAsync<Result<IList<TRow>>>(context, async () =>
             {
                 var handlerObject = queryMetadata.CreateHandler(serviceProvider);
                 try
                 {
-                    var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
+                    var rows = await ((Task<IList<TRow>>)queryMetadata.Invoke(handlerObject, query, context.CancellationToken)).ConfigureAwait(false);
 
                     return Result.Success(rows);
                 }
@@ -64,18 +64,18 @@ namespace BrandUp
 
             var queryType = query.GetType();
             if (!options.TryGetQueryHandler(queryType, out QueryMetadata? queryMetadata))
-                throw new InvalidOperationException($"Not found query handler by type \"{queryType.AssemblyQualifiedName}\"");
+                throw new InvalidOperationException($"Query handler for query type \"{queryType.AssemblyQualifiedName}\" is not registered.");
             if (!queryMetadata.IsSingle)
                 throw new InvalidOperationException($"Query \"{queryType.AssemblyQualifiedName}\" returns a list. Use QueryAsync<TRow>(IQuery<TRow>).");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.SingleQuery, query, null, serviceProvider, typeof(Result<TModel>), static errors => Result.Error<TModel>(errors));
+            var context = new DomainBehaviorContext(DomainDispatchKind.SingleQuery, query, null, serviceProvider, typeof(Result<TModel>), static errors => Result.Error<TModel>(errors), cancellationToken);
 
             return await DispatchAsync<Result<TModel>>(context, async () =>
             {
                 var handlerObject = queryMetadata.CreateHandler(serviceProvider);
                 try
                 {
-                    return await ((Task<Result<TModel>>)queryMetadata.Invoke(handlerObject, query, cancellationToken)).ConfigureAwait(false);
+                    return await ((Task<Result<TModel>>)queryMetadata.Invoke(handlerObject, query, context.CancellationToken)).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -90,11 +90,11 @@ namespace BrandUp
 
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
-                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+                throw new InvalidOperationException($"Command handler for command type \"{commandType.AssemblyQualifiedName}\" is not registered.");
             if (commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendAsync<TResult>.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result), static errors => Result.Error(errors));
+            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result), static errors => Result.Error(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result>(commandMetadata, context, null, command, cancellationToken).ConfigureAwait(false);
         }
@@ -105,11 +105,11 @@ namespace BrandUp
 
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
-                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+                throw new InvalidOperationException($"Command handler for command type \"{commandType.AssemblyQualifiedName}\" is not registered.");
             if (!commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendAsync.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors));
+            var context = new DomainBehaviorContext(DomainDispatchKind.Command, command, null, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, context, null, command, cancellationToken).ConfigureAwait(false);
         }
@@ -122,11 +122,11 @@ namespace BrandUp
 
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
-                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+                throw new InvalidOperationException($"Command handler for command type \"{commandType.AssemblyQualifiedName}\" is not registered.");
             if (commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled with a result. Use SendItemAsync<TId, TItem, TResult>.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result), static errors => Result.Error(errors));
+            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result), static errors => Result.Error(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result>(commandMetadata, context, item, command, cancellationToken).ConfigureAwait(false);
         }
@@ -139,11 +139,11 @@ namespace BrandUp
 
             var commandType = command.GetType();
             if (!options.TryGetCommandHandler(commandType, out CommandMetadata? commandMetadata))
-                throw new InvalidOperationException($"Not found handler by command \"{commandType.AssemblyQualifiedName}\".");
+                throw new InvalidOperationException($"Command handler for command type \"{commandType.AssemblyQualifiedName}\" is not registered.");
             if (!commandMetadata.WithResult)
                 throw new InvalidOperationException($"Command \"{commandType.AssemblyQualifiedName}\" is handled without a result. Use SendItemAsync<TId, TItem>.");
 
-            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors));
+            var context = new DomainBehaviorContext(DomainDispatchKind.ItemCommand, command, item, serviceProvider, typeof(Result<TResultData>), static errors => Result.Error<TResultData>(errors), cancellationToken);
 
             return await ExecuteCommandAsync<Result<TResultData>>(commandMetadata, context, item, command, cancellationToken).ConfigureAwait(false);
         }
@@ -158,7 +158,7 @@ namespace BrandUp
                 var handlerObject = commandMetadata.CreateHandler(serviceProvider);
                 try
                 {
-                    return await ((Task<TResult>)commandMetadata.Invoke(handlerObject, item, command, cancellationToken)).ConfigureAwait(false);
+                    return await ((Task<TResult>)commandMetadata.Invoke(handlerObject, item, command, context.CancellationToken)).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -232,7 +232,7 @@ namespace BrandUp
                     return handlerInvoke();
 
                 var behavior = pipeline[index];
-                return behavior.InvokeAsync(context, () => InvokePipelineAsync(index + 1), cancellationToken);
+                return behavior.InvokeAsync(context, () => InvokePipelineAsync(index + 1), context.CancellationToken);
             }
 
             Result result;

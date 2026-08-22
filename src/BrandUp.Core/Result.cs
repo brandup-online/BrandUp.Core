@@ -20,7 +20,7 @@
         /// <summary>
         /// Number of errors; <c>0</c> on success.
         /// </summary>
-        public int CountErrors => errors?.Length ?? 0;
+        public int ErrorCount => errors?.Length ?? 0;
 
         internal Result() { }
         internal Result(IList<IError> errors)
@@ -175,7 +175,7 @@
             if (IsSuccess)
                 return "Success";
             else
-                return $"Errors: {CountErrors}";
+                return $"Errors: {ErrorCount}";
         }
 
         #endregion
@@ -209,7 +209,7 @@
             if (IsSuccess)
                 return $"Success ({dataType.FullName})";
             else
-                return $"Errors ({dataType.FullName}): {CountErrors}";
+                return $"Errors ({dataType.FullName}): {ErrorCount}";
         }
 
         #endregion

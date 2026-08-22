@@ -8,7 +8,7 @@ namespace BrandUp.Testing
     /// factories: a Begin inside an active transaction returns a child handle whose commit and
     /// abort are no-ops, so only the outermost handle is recorded.
     /// </summary>
-    public class TestTransactionFactory : ITransactionFactory
+    public sealed class TestTransactionFactory : ITransactionFactory
     {
         readonly List<string> operations = [];
         bool active;

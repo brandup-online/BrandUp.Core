@@ -8,7 +8,7 @@ namespace BrandUp.Testing
     /// <see cref="DomainOptionsTestingExtensions.CaptureEvent{TEvent}"/> — capture runs as an
     /// ordinary immediate handler, so it sees the event exactly when it is published.
     /// </summary>
-    public class EventCapture
+    public sealed class EventCapture
     {
         readonly List<IDomainEvent> events = [];
 
@@ -40,7 +40,7 @@ namespace BrandUp.Testing
         /// </summary>
         /// <typeparam name="TEvent">Expected event type.</typeparam>
         /// <exception cref="DomainAssertException">Zero or several events of the type were captured.</exception>
-        public TEvent Single<TEvent>()
+        public TEvent AssertSingle<TEvent>()
             where TEvent : IDomainEvent
         {
             var captured = OfType<TEvent>();
@@ -97,7 +97,7 @@ namespace BrandUp.Testing
     /// The immediate handler behind <see cref="DomainOptionsTestingExtensions.CaptureEvent{TEvent}"/>.
     /// </summary>
     /// <typeparam name="TEvent">Captured event type.</typeparam>
-    public class CaptureEventHandler<TEvent>(EventCapture capture) : IDomainEventHandler<TEvent>
+    public sealed class CaptureEventHandler<TEvent>(EventCapture capture) : IDomainEventHandler<TEvent>
         where TEvent : IDomainEvent
     {
         /// <inheritdoc/>

@@ -15,7 +15,7 @@ namespace BrandUp
         public static MethodInfo GetHandleMethod(Type handlerInterface, Type[] parameterTypes)
         {
             return handlerInterface.GetMethod("HandleAsync", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, parameterTypes, null)
-                ?? throw new InvalidOperationException($"Not found \"HandleAsync\" method on handler interface \"{handlerInterface.AssemblyQualifiedName}\".");
+                ?? throw new InvalidOperationException($"Handler interface \"{handlerInterface.AssemblyQualifiedName}\" does not declare a \"HandleAsync\" method.");
         }
 
         /// <summary>

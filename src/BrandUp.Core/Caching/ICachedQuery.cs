@@ -2,7 +2,7 @@ namespace BrandUp.Caching
 {
     /// <summary>
     /// Declares that a query's successful result may be cached. Requires
-    /// <see cref="QueryCacheBehavior"/> (see <see cref="DomainBuilderExtensions.AddQueryCaching(Builder.IDomainBuilder)"/>).
+    /// <see cref="QueryCacheBehavior"/> (see <see cref="DomainBuilderExtensions.AddQueryCaching(IDomainBuilder)"/>).
     /// </summary>
     public interface ICachedQuery
     {
@@ -13,10 +13,11 @@ namespace BrandUp.Caching
         string CacheKey { get; }
 
         /// <summary>
-        /// How long the cached result stays valid; <see langword="null"/> means no expiration
-        /// (until invalidated via <see cref="ICacheInvalidating"/> or evicted by the cache).
+        /// How long the cached result stays valid; <see langword="null"/> (the default) means no
+        /// expiration (until invalidated via <see cref="ICacheInvalidating"/> or evicted by the
+        /// cache).
         /// </summary>
-        TimeSpan? CacheDuration { get; }
+        TimeSpan? CacheDuration => null;
     }
 
     /// <summary>

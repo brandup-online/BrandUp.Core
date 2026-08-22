@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace BrandUp
@@ -8,7 +9,7 @@ namespace BrandUp
     /// Populate via <see cref="DomainBuilderExtensions.AddErrorCatalog"/>; registered as a
     /// singleton.
     /// </summary>
-    public class ErrorCatalog
+    public sealed class ErrorCatalog
     {
         readonly Dictionary<string, ErrorDescriptor> descriptors = [];
 
@@ -76,9 +77,10 @@ namespace BrandUp
         /// Looks up a descriptor by its code.
         /// </summary>
         /// <param name="code">Error code.</param>
-        /// <param name="descriptor">The found descriptor, or <see langword="null"/>.</param>
+        /// <param name="descriptor">The found descriptor; never <see langword="null"/> when the
+        /// method returns <see langword="true"/>.</param>
         /// <returns><see langword="true"/> if the code is registered.</returns>
-        public bool TryGet(string code, out ErrorDescriptor? descriptor)
+        public bool TryGet(string code, [MaybeNullWhen(false)] out ErrorDescriptor descriptor)
         {
             ArgumentNullException.ThrowIfNull(code);
 

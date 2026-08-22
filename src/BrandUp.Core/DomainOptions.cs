@@ -11,7 +11,7 @@ namespace BrandUp
     /// Registry of query, command and event handlers that backs an <see cref="IDomain"/>.
     /// Configured via <c>AddDomain</c>; handlers are keyed by query, command and event type.
     /// </summary>
-    public class DomainOptions
+    public sealed class DomainOptions
     {
         internal readonly static Type QueryHandlerDefinitionType = typeof(IQueryHandler<,>);
         internal readonly static Type SingleQueryHandlerDefinitionType = typeof(ISingleQueryHandler<,>);
@@ -23,6 +23,10 @@ namespace BrandUp
         internal readonly static Type DeferredEventHandlerDefinitionType = typeof(IDeferredDomainEventHandler<>);
 
         readonly Dictionary<Type, QueryMetadata> queries = [];
+
+        internal IEnumerable<Type> QueryTypes => queries.Keys;
+
+        internal IEnumerable<Type> CommandTypes => commands.Keys;
         readonly Dictionary<Type, CommandMetadata> commands = [];
         readonly Dictionary<Type, List<EventMetadata>> events = [];
 
@@ -45,7 +49,7 @@ namespace BrandUp
         /// <summary>
         /// <see langword="true"/> when deferred events are routed through the registered
         /// <see cref="Events.IEventOutbox"/>. Enabled explicitly via
-        /// <see cref="DomainBuilderExtensions.AddEventOutbox(Builder.IDomainBuilder)"/> — merely
+        /// <see cref="DomainBuilderExtensions.UseEventOutbox(IDomainBuilder)"/> — merely
         /// registering an outbox implementation does not reroute events.
         /// </summary>
         internal bool UseEventOutbox { get; set; }
@@ -80,7 +84,8 @@ namespace BrandUp
         /// <summary>
         /// Registers a query handler.
         /// </summary>
-        /// <typeparam name="THandler">A type implementing <see cref="IQueryHandler{TQuery, TRow}"/>.</typeparam>
+        /// <typeparam name="THandler">A type implementing <see cref="IQueryHandler{TQuery, TRow}"/>
+        /// or <see cref="ISingleQueryHandler{TQuery, TModel}"/>.</typeparam>
         /// <returns>This instance, for chaining.</returns>
         /// <exception cref="InvalidOperationException">
         /// The type is not a query handler, or a handler for the same query type is already registered.
@@ -117,14 +122,14 @@ namespace BrandUp
                 var queryMetadata = QueryMetadata.Build(handlerType, iType, isSingle);
 
                 if (!queries.TryAdd(queryMetadata.QueryType, queryMetadata))
-                    throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" already exist.");
+                    throw new InvalidOperationException($"Query handler \"{handlerType.AssemblyQualifiedName}\" is already registered.");
 
                 frozenQueries = null;
 
                 return this;
             }
 
-            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {QueryHandlerDefinitionType.FullName} or {SingleQueryHandlerDefinitionType.FullName}.");
+            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" does not implement interface {QueryHandlerDefinitionType.FullName} or {SingleQueryHandlerDefinitionType.FullName}.");
         }
         /// <summary>
         /// Registers a command handler (with or without result, and item or non-item).
@@ -192,14 +197,14 @@ namespace BrandUp
                 var commandMetadata = CommandMetadata.Build(handlerType, handlerInterface, itemType, commandType, resultType);
 
                 if (!commands.TryAdd(commandType, commandMetadata))
-                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" already exist by command type \"{commandType.AssemblyQualifiedName}\".");
+                    throw new InvalidOperationException($"Command handler \"{handlerType.AssemblyQualifiedName}\" is already registered for command type \"{commandType.AssemblyQualifiedName}\".");
 
                 frozenCommands = null;
 
                 return this;
             }
 
-            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {CommandHandlerWithResultDefinitionType.FullName}.");
+            throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" does not implement interface {CommandHandlerWithResultDefinitionType.FullName}.");
         }
 
         /// <summary>
@@ -241,7 +246,7 @@ namespace BrandUp
                 var eventType = handlerInterface.GenericTypeArguments[0];
 
                 if (events.TryGetValue(eventType, out var registered) && registered.Exists(m => m.HandlerType == handlerType))
-                    throw new InvalidOperationException($"Event handler \"{handlerType.AssemblyQualifiedName}\" already exist by event type \"{eventType.AssemblyQualifiedName}\".");
+                    throw new InvalidOperationException($"Event handler \"{handlerType.AssemblyQualifiedName}\" is already registered for event type \"{eventType.AssemblyQualifiedName}\".");
 
                 // Exact declared-interface match: assignability would also match variant-compatible event types.
                 var isDeferred = Array.IndexOf(handlerInterfaces, DeferredEventHandlerDefinitionType.MakeGenericType(eventType)) >= 0;
@@ -250,7 +255,7 @@ namespace BrandUp
             }
 
             if (registrations.Count == 0)
-                throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" is do not implementation interface {EventHandlerDefinitionType.FullName}.");
+                throw new InvalidOperationException($"Type \"{handlerType.AssemblyQualifiedName}\" does not implement interface {EventHandlerDefinitionType.FullName}.");
 
             foreach (var eventMetadata in registrations)
             {

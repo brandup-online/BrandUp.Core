@@ -13,8 +13,9 @@ namespace BrandUp
     public static class DomainDiagnostics
     {
         /// <summary>
-        /// Name of the <see cref="ActivitySource"/> emitting a span per query/command dispatch
-        /// and per event handler execution.
+        /// Name of the <see cref="ActivitySource"/> emitting a span per query/command dispatch,
+        /// per command transaction and per event handler execution. Cached-query dispatches also
+        /// carry a <c>brandup.cache</c> tag (hit/miss/bypass) on the dispatch span.
         /// </summary>
         public const string ActivitySourceName = "BrandUp.Domain";
 
@@ -61,6 +62,29 @@ namespace BrandUp
                 if (status != "success")
                     activity.SetStatus(ActivityStatusCode.Error, exception?.Message);
             }
+        }
+
+        internal static Activity? StartTransaction(Type commandType)
+        {
+            var activity = activitySource.StartActivity("domain.transaction");
+            if (activity != null)
+            {
+                activity.DisplayName = $"transaction {commandType.Name}";
+                activity.SetTag("brandup.request", commandType.FullName);
+            }
+
+            return activity;
+        }
+
+        internal static void EndTransaction(Activity? activity, string outcome)
+        {
+            if (activity == null)
+                return;
+
+            activity.SetTag("brandup.outcome", outcome);
+            if (outcome != "commit")
+                activity.SetStatus(ActivityStatusCode.Error);
+            activity.Dispose();
         }
 
         internal static Activity? StartEventHandler(EventMetadata eventMetadata)

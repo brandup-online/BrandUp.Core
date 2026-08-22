@@ -6,7 +6,7 @@ namespace BrandUp
     /// <summary>
     /// <see cref="ILogger"/> extensions for logging failed results.
     /// </summary>
-    public static class ILoggerExtensions
+    public static class LoggerExtensions
     {
         /// <summary>
         /// Logs the errors of a failed result, if any.

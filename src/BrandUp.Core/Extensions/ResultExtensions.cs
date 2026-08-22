@@ -12,10 +12,11 @@
         /// <param name="result">A failed result.</param>
         /// <returns>A failed <see cref="Result{TData}"/> with the same errors.</returns>
         /// <exception cref="ArgumentException"><paramref name="result"/> is successful.</exception>
-        public static Result<TData> AsObjectiveErrors<TData>(this Result result)
+        public static Result<TData> AsErrorResult<TData>(this Result result)
         {
+            ArgumentNullException.ThrowIfNull(result);
             if (result.IsSuccess)
-                throw new ArgumentException("Result required is errors.");
+                throw new ArgumentException("Only a failed result can be reinterpreted as a typed error result.", nameof(result));
 
             return new Result<TData>([.. result.Errors]);
         }

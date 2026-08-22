@@ -2,7 +2,7 @@ namespace BrandUp.Events
 {
     /// <summary>
     /// Durable store for deferred domain events (transactional outbox). Enabled explicitly via
-    /// <c>AddEventOutbox</c> — merely registering an implementation does not reroute events. When
+    /// <c>AddEventOutbox&lt;TOutbox&gt;</c> or <c>UseEventOutbox</c> — merely registering an implementation does not reroute events. When
     /// enabled, deferred events are enqueued here at publish time — inside the command's
     /// transaction when the store shares it — instead of being executed in process; a background
     /// processor reads them back after commit and delivers through

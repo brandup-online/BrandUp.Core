@@ -8,12 +8,18 @@ namespace BrandUp.Example.Commands
     public class RenameUserCommand : IItemCommand<User, string>
     {
         public string NewPhone { get; set; }
+        public bool Fail { get; set; }
     }
 
     public class RenameUserCommandHandler : IItemCommandHandler<User, RenameUserCommand, string>
     {
+        public static readonly ErrorDescriptor RenameFailed = new("rename-failed", ErrorKind.Conflict, "Rename failed.");
+
         public Task<Result<string>> HandleAsync(User item, RenameUserCommand command, CancellationToken cancellationToken = default)
         {
+            if (command.Fail)
+                return Task.FromResult(Result.Error<string>(RenameFailed));
+
             item.Phone = command.NewPhone;
 
             return Task.FromResult(Result.Success(item.Phone));

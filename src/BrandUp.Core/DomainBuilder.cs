@@ -1,14 +1,15 @@
 ﻿using BrandUp.Behaviors;
 using BrandUp.Events;
+using BrandUp.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace BrandUp.Builder
+namespace BrandUp
 {
     /// <summary>
     /// Default <see cref="IDomainBuilder"/>. Registers core domain services on construction.
     /// </summary>
-    public class DomainBuilder : IDomainBuilder
+    public sealed class DomainBuilder : IDomainBuilder
     {
         /// <inheritdoc/>
         public IServiceCollection Services { get; }
@@ -34,6 +35,11 @@ namespace BrandUp.Builder
             // behavior. TryAddEnumerable keeps a repeated AddDomain from stacking a second
             // validation stage.
             services.TryAddEnumerable(ServiceDescriptor.Scoped<IDomainBehavior, ValidationBehavior>());
+
+            // Data-annotations validation works out of the box - the obvious code ([Required]
+            // attributes plus AddDomain) must validate without an extra registration.
+            // TryAddEnumerable keeps composed registrations from stacking a duplicate validator.
+            services.TryAddEnumerable(ServiceDescriptor.Scoped<IValidator, ComponentModelValidator>());
 
             // Scoped: event handlers are constructed from the publishing scope's service provider.
             services.AddScoped<DomainEventPublisher>();

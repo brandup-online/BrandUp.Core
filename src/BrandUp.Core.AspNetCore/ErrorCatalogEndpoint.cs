@@ -48,7 +48,7 @@ namespace BrandUp
                 .OrderBy(descriptor => descriptor.Code, StringComparer.Ordinal)
                 .Select(descriptor =>
                 {
-                    var message = ResultHttpExtensions.LocalizeOrInvariant(errorLocalizer, descriptor.CreateError(), culture);
+                    var message = descriptor.CreateError().LocalizeOrInvariant(errorLocalizer, culture);
 
                     return new ErrorCatalogEntry(
                         descriptor.Code,

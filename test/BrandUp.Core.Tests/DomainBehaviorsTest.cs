@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
-using BrandUp.Builder;
 using BrandUp.Events;
 using BrandUp.Example.Behaviors;
 using BrandUp.Example.Commands;
@@ -377,6 +376,46 @@ namespace BrandUp
             Assert.True(result.IsSuccess);
             Assert.Contains("deferred-query:42", log.Entries);
             Assert.Equal(1, log.Entries.Count(entry => entry == "cached-query-exec"));
+        }
+
+        [Fact]
+        public async Task QueryCache_DoesNotTagForeignAmbientActivity()
+        {
+            using var serviceProvider = BuildServices(
+                options => options.AddQuery<CachedCountQueryHandler>(),
+                builder => builder.AddQueryCaching<RecordingQueryCache>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            // Without a BrandUp.Domain listener the dispatch span is absent and Activity.Current
+            // is the host's ambient activity (e.g. the HTTP request span) - it must stay untagged.
+            var ambient = new System.Diagnostics.Activity("host.request").Start();
+            try
+            {
+                await domain.QueryAsync(new CachedCountQuery(), TestContext.Current.CancellationToken);
+
+                Assert.DoesNotContain(ambient.TagObjects, tag => tag.Key == "brandup.cache");
+            }
+            finally
+            {
+                ambient.Stop();
+            }
+        }
+
+        [Fact]
+        public async Task QueryCache_InvalidationFailure_DoesNotFailCommand()
+        {
+            // The command already succeeded and committed: a throwing RemoveAsync must be
+            // logged, not surfaced to the caller.
+            using var serviceProvider = BuildServices(
+                options => options.AddCommand<InvalidateCountCommandHandler>(),
+                builder => builder.AddQueryCaching<ThrowOnRemoveQueryCache>());
+            using var scope = serviceProvider.CreateAsyncScope();
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            var result = await domain.SendAsync(new InvalidateCountCommand(), TestContext.Current.CancellationToken);
+
+            Assert.True(result.IsSuccess);
         }
 
         [Fact]

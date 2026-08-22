@@ -10,7 +10,7 @@ namespace BrandUp.Caching
     /// read-only. Swap for a custom implementation when cache coherence across instances is
     /// required.
     /// </summary>
-    public class MemoryQueryCache : IQueryCache, IDisposable
+    public sealed class MemoryQueryCache : IQueryCache, IDisposable
     {
         readonly MemoryCache cache;
 
@@ -24,7 +24,7 @@ namespace BrandUp.Caching
         }
 
         /// <inheritdoc/>
-        public ValueTask<Result?> GetAsync(string key, CancellationToken cancellationToken = default)
+        public ValueTask<Result?> GetAsync(string key, Type resultType, CancellationToken cancellationToken = default)
         {
             ArgumentNullException.ThrowIfNull(key);
 

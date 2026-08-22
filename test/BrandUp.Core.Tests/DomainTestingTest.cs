@@ -13,7 +13,7 @@ namespace BrandUp
 {
     public class DomainTestingTest
     {
-        static DomainTestHost CreateHost(Action<DomainOptions> configureDomain, Action<Builder.IDomainBuilder> configureBuilder = null)
+        static DomainTestHost CreateHost(Action<DomainOptions> configureDomain, Action<IDomainBuilder> configureBuilder = null)
         {
             return DomainTestHost.Create(
                 configureDomain,
@@ -42,6 +42,16 @@ namespace BrandUp
             var error = await host.Domain.AssertSendErrorAsync(new PublishingCommand { Phone = "+1", Fail = true }, code: "fail", cancellationToken: TestContext.Current.CancellationToken);
 
             Assert.Equal("fail", error.Code);
+        }
+
+        [Fact]
+        public async Task AssertQueryErrorAsync_MatchesCode()
+        {
+            await using var host = CreateHost(options => options.AddQuery<Example.Queries.MissingUserQueryHandler>());
+
+            var error = await host.Domain.AssertQueryErrorAsync(new Example.Queries.MissingUserQuery(), code: "not-found", cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.Equal("not-found", error.Code);
         }
 
         [Fact]
@@ -89,7 +99,7 @@ namespace BrandUp
 
             await host.Domain.AssertSendAsync(new PublishingCommand { Phone = "+1" }, TestContext.Current.CancellationToken);
 
-            Assert.Equal("+1", host.Events.Single<UserJoined>().Phone);
+            Assert.Equal("+1", host.Events.AssertSingle<UserJoined>().Phone);
             host.Events.AssertPublished<UserJoined>(e => e.Phone == "+1");
             host.Events.AssertNotPublished<UserLeft>();
         }
@@ -130,6 +140,66 @@ namespace BrandUp
             Assert.Equal(1, delivered);
             Assert.Empty(host.Outbox.Enqueued);
             Assert.Equal(["command", "deferred:+1"], log.Entries);
+        }
+
+        [Fact]
+        public async Task AssertSendItemErrorAsync_WithResult_MatchesCode()
+        {
+            await using var host = CreateHost(
+                options => options.AddCommand<RenameUserCommandHandler>(),
+                builder => builder.AddItemProvider<UserProvider>());
+            var user = new User { Id = Guid.Empty, Phone = "+1" };
+
+            // The command declares a result, so the TResult overload must be picked - by inference
+            // as well as explicitly. The resultless one would hit the "handled with a result" guard.
+            var inferred = await host.Domain.AssertSendItemErrorAsync(
+                user,
+                new RenameUserCommand { NewPhone = "+2", Fail = true },
+                code: "rename-failed",
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            var explicitlyTyped = await host.Domain.AssertSendItemErrorAsync<Guid, User, string>(
+                user,
+                new RenameUserCommand { NewPhone = "+2", Fail = true },
+                kind: ErrorKind.Conflict,
+                cancellationToken: TestContext.Current.CancellationToken);
+
+            Assert.Equal(ErrorKind.Conflict, inferred.Kind);
+            Assert.Equal("rename-failed", explicitlyTyped.Code);
+            Assert.Equal("+1", user.Phone);
+        }
+
+        [Fact]
+        public async Task AssertSendItemErrorAsync_WithResult_MatchesDescriptor()
+        {
+            await using var host = CreateHost(
+                options => options.AddCommand<RenameUserCommandHandler>(),
+                builder => builder.AddItemProvider<UserProvider>());
+            var user = new User { Id = Guid.Empty, Phone = "+1" };
+
+            var error = await host.Domain.AssertSendItemErrorAsync(
+                user,
+                new RenameUserCommand { NewPhone = "+2", Fail = true },
+                RenameUserCommandHandler.RenameFailed,
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal("rename-failed", error.Code);
+        }
+
+        [Fact]
+        public async Task AssertSendItemErrorAsync_WithResult_OnSuccess_Throws()
+        {
+            await using var host = CreateHost(
+                options => options.AddCommand<RenameUserCommandHandler>(),
+                builder => builder.AddItemProvider<UserProvider>());
+            var user = new User { Id = Guid.Empty, Phone = "+1" };
+
+            await Assert.ThrowsAnyAsync<DomainAssertException>(
+                () => host.Domain.AssertSendItemErrorAsync(
+                    user,
+                    new RenameUserCommand { NewPhone = "+2" },
+                    RenameUserCommandHandler.RenameFailed,
+                    TestContext.Current.CancellationToken));
         }
 
         [Fact]

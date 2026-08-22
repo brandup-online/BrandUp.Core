@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace BrandUp.Events
 {
-    internal class DomainEventPublisher(IOptions<DomainOptions> options, IServiceProvider serviceProvider, ILogger<DomainEventPublisher>? logger = null) : IDomainEventPublisher, IDomainEventDispatcher
+    internal sealed class DomainEventPublisher(IOptions<DomainOptions> options, IServiceProvider serviceProvider, ILogger<DomainEventPublisher>? logger = null) : IDomainEventPublisher, IDomainEventDispatcher
     {
         // Per-async-flow stack of command scopes: parallel commands and nested commands are isolated
         // by construction, and no scope outlives the dispatch that created it (an abandoned scope is
@@ -31,7 +31,7 @@ namespace BrandUp.Events
             if (!options.TryGetEventHandlers(eventType, out var eventHandlers))
             {
                 if (options.RequireEventHandlers)
-                    throw new InvalidOperationException($"Not found event handlers by event \"{eventType.AssemblyQualifiedName}\".");
+                    throw new InvalidOperationException($"No event handlers are registered for event type \"{eventType.AssemblyQualifiedName}\".");
                 return;
             }
 
@@ -89,7 +89,7 @@ namespace BrandUp.Events
 
         IEventOutbox? ResolveOutbox()
         {
-            // Explicit opt-in (AddEventOutbox) gates the rerouting; a store registered without it
+            // Explicit opt-in (UseEventOutbox) gates the rerouting; a store registered without it
             // changes nothing, and the flag without a store fails loudly right here.
             if (!options.UseEventOutbox)
                 return null;
@@ -183,6 +183,14 @@ namespace BrandUp.Events
             DomainDiagnostics.EndEventHandler(activity, eventMetadata, startTimestamp);
         }
 
+        // NOTE: this scope and Behaviors.CommandDispatchScope are two deliberate instances of
+        // the same "defer until the outermost command succeeds" primitive, kept separate on
+        // purpose: this one is owner-checked per publisher (deferred events must not leak across
+        // container boundaries) and its items are flushed by the publisher with per-handler
+        // logging, while the dispatch scope is process-wide (IsInsideCommand must hold across
+        // containers) and runs opaque completion actions. When fixing an edge case here
+        // (late-finishing nested command, dead-scope fallback), check CommandDispatchScope for
+        // the same case.
         sealed class CommandScope(DomainEventPublisher owner, CommandScope? parent)
         {
             // Guards `deferred` and `ended`: parallel nested commands promote into the shared

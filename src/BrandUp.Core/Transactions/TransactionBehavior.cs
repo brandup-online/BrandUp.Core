@@ -8,11 +8,11 @@ namespace BrandUp.Transactions
     /// <see cref="ITransactionFactory"/>: begin before the handler, commit on a successful result,
     /// abort on an error result or exception. Commands marked <see cref="NonTransactionalAttribute"/>
     /// are dispatched outside the boundary. Registered via
-    /// <see cref="DomainBuilderExtensions.AddTransactions(Builder.IDomainBuilder)"/>; combined with
+    /// <see cref="DomainBuilderExtensions.AddTransactions(IDomainBuilder)"/>; combined with
     /// deferred domain events this makes the guarantee strict — deferred handlers flush only after
     /// the commit, since the event scope closes after the whole pipeline.
     /// </summary>
-    public class TransactionBehavior(ITransactionFactory transactionFactory) : IDomainBehavior
+    public sealed class TransactionBehavior(ITransactionFactory transactionFactory) : IDomainBehavior
     {
         static readonly ConcurrentDictionary<Type, bool> nonTransactionalCommands = new();
 
@@ -24,16 +24,32 @@ namespace BrandUp.Transactions
             if (!context.IsCommand || IsNonTransactional(context.Request.GetType()))
                 return await next().ConfigureAwait(false);
 
-            var transaction = await transactionFactory.BeginAsync(cancellationToken).ConfigureAwait(false);
-            await using (transaction.ConfigureAwait(false))
+            var activity = DomainDiagnostics.StartTransaction(context.Request.GetType());
+            var outcome = "begin-failed";
+            try
             {
-                var result = await next().ConfigureAwait(false);
+                var transaction = await transactionFactory.BeginAsync(cancellationToken).ConfigureAwait(false);
+                outcome = "abort";
+                await using (transaction.ConfigureAwait(false))
+                {
+                    var result = await next().ConfigureAwait(false);
 
-                if (result is { IsSuccess: true })
-                    await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                    if (result is { IsSuccess: true })
+                    {
+                        // The result is decided: committing is post-decision work, not
+                        // cancellable on the caller's behalf - a timeout firing mid-commit must
+                        // not report a possibly-committed transaction as a definitive error.
+                        await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+                        outcome = "commit";
+                    }
 
-                // Disposal aborts when CommitAsync was not reached (error result or exception).
-                return result;
+                    // Disposal aborts when CommitAsync was not reached (error result or exception).
+                    return result;
+                }
+            }
+            finally
+            {
+                DomainDiagnostics.EndTransaction(activity, outcome);
             }
         }
 

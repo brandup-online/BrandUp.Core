@@ -122,7 +122,7 @@ namespace BrandUp.Example.Behaviors
     // Logs cache traffic so tests can assert ordering against transaction operations.
     public class RecordingQueryCache(EventLog log) : IQueryCache
     {
-        public ValueTask<Result> GetAsync(string key, CancellationToken cancellationToken = default)
+        public ValueTask<Result> GetAsync(string key, Type resultType, CancellationToken cancellationToken = default)
         {
             log.Add($"cache-get:{key}");
             return ValueTask.FromResult<Result>(null);
@@ -200,6 +200,25 @@ namespace BrandUp.Example.Behaviors
             var queryResult = await domain.QueryAsync(new CachedCountQuery(), cancellationToken);
 
             log.Add($"deferred-query:{queryResult.Data}");
+        }
+    }
+
+    // A cache whose RemoveAsync always fails - invalidation failures must not fail commands.
+    public class ThrowOnRemoveQueryCache : IQueryCache
+    {
+        public ValueTask<Result> GetAsync(string key, Type resultType, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<Result>(null);
+        }
+
+        public ValueTask SetAsync(string key, Result result, TimeSpan? duration, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RemoveAsync(string key, CancellationToken cancellationToken = default)
+        {
+            throw new InvalidOperationException("Cache backend is unavailable.");
         }
     }
 

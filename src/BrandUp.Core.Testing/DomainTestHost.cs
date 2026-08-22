@@ -1,4 +1,3 @@
-using BrandUp.Builder;
 using BrandUp.Events;
 using Microsoft.Extensions.DependencyInjection;
 

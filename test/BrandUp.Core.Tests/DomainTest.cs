@@ -533,7 +533,7 @@ namespace BrandUp
                 TestContext.Current.CancellationToken);
 
             Assert.False(result.IsSuccess);
-            Assert.Equal(2, result.CountErrors);
+            Assert.Equal(2, result.ErrorCount);
         }
 
         [Fact]
@@ -612,6 +612,9 @@ namespace BrandUp
                 TestContext.Current.CancellationToken);
 
             Assert.False(result.IsSuccess);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(DomainErrors.ItemNotFound.Code, error.Code);
+            Assert.Equal(ErrorKind.NotFound, error.Kind);
         }
 
         [Fact]
@@ -639,6 +642,9 @@ namespace BrandUp
                 TestContext.Current.CancellationToken);
 
             Assert.False(result.IsSuccess);
+            var error = Assert.Single(result.Errors);
+            Assert.Equal(DomainErrors.ItemNotFound.Code, error.Code);
+            Assert.Equal(ErrorKind.NotFound, error.Kind);
         }
 
         [Fact]
@@ -720,6 +726,64 @@ namespace BrandUp
                 TestContext.Current.CancellationToken);
 
             Assert.False(result.IsSuccess);
+        }
+
+        [Fact]
+        public async Task QueryAsync_DataAnnotationsValidation_OnByDefault()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            // No AddValidator call: the data-annotations validator is registered by AddDomain.
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddQuery<UserByPhoneQueryHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.QueryAsync(
+                new UserByPhoneQuery(),
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+            Assert.All(result.Errors, error => Assert.Equal(ErrorKind.Validation, error.Kind));
+        }
+
+        [Fact]
+        public async Task QueryAsync_DuplicateValidatorRegistration_ValidatesOnce()
+        {
+            #region Prepare
+
+            var serviceCollection = new ServiceCollection();
+
+            // Registered directly on the service collection, next to the default registration:
+            // the behavior must dedupe by type instead of reporting every error twice.
+            serviceCollection.AddScoped<Validation.IValidator, ComponentModelValidator>();
+            serviceCollection.AddDomain(options =>
+                {
+                    options.AddQuery<UserByPhoneQueryHandler>();
+                });
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+            using var scope = serviceProvider.CreateAsyncScope();
+
+            var domain = scope.ServiceProvider.GetRequiredService<IDomain>();
+
+            #endregion
+
+            var result = await domain.QueryAsync(
+                new UserByPhoneQuery(),
+                TestContext.Current.CancellationToken);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(1, result.ErrorCount);
         }
 
         [Fact]

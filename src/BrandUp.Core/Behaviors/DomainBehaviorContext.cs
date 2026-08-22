@@ -4,7 +4,7 @@ namespace BrandUp.Behaviors
     /// The dispatch a behavior is wrapping: what is being executed and the services of the
     /// executing scope.
     /// </summary>
-    public class DomainBehaviorContext
+    public sealed class DomainBehaviorContext
     {
         readonly Func<IList<IError>, Result> errorFactory;
         Dictionary<object, object?>? properties;
@@ -43,6 +43,13 @@ namespace BrandUp.Behaviors
         public bool IsInsideCommand { get; }
 
         /// <summary>
+        /// Token of the current dispatch. Starts as the caller's token; a timeout behavior
+        /// narrows it for everything downstream — each pipeline step and the handler read it at
+        /// invocation time.
+        /// </summary>
+        public CancellationToken CancellationToken { get; internal set; }
+
+        /// <summary>
         /// Arbitrary state shared between behaviors of one dispatch. Created on first access.
         /// </summary>
         public IDictionary<object, object?> Properties => properties ??= [];
@@ -66,8 +73,10 @@ namespace BrandUp.Behaviors
         /// <param name="services">Service provider of the executing scope.</param>
         /// <param name="resultType">The exact <see cref="Result"/>-derived type the dispatch returns.</param>
         /// <param name="errorFactory">Builds an error result of the shape the dispatch returns.</param>
-        public DomainBehaviorContext(DomainDispatchKind kind, object request, object? item, IServiceProvider services, Type resultType, Func<IList<IError>, Result> errorFactory)
+        /// <param name="cancellationToken">Token of the dispatch (the caller's token).</param>
+        public DomainBehaviorContext(DomainDispatchKind kind, object request, object? item, IServiceProvider services, Type resultType, Func<IList<IError>, Result> errorFactory, CancellationToken cancellationToken = default)
         {
+            CancellationToken = cancellationToken;
             Kind = kind;
             Request = request ?? throw new ArgumentNullException(nameof(request));
             Item = item;

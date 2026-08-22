@@ -21,7 +21,7 @@ namespace BrandUp
 
             var builder = serviceCollection.AddDomain(configure);
             if (optIn)
-                builder.AddEventOutbox();
+                builder.UseEventOutbox();
 
             return serviceCollection.BuildServiceProvider();
         }

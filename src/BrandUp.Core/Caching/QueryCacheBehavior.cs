@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using BrandUp.Behaviors;
+using Microsoft.Extensions.Logging;
 
 namespace BrandUp.Caching
 {
@@ -9,9 +11,11 @@ namespace BrandUp.Caching
     /// successful results are cached; queries running inside a command are bypassed (they may
     /// observe uncommitted state). The cached <see cref="Result"/> instance is shared between
     /// callers - treat its data as read-only. A cache hit short-circuits behaviors registered
-    /// after this one, so register caching after authorization-like behaviors.
+    /// after this one, so register caching after authorization-like behaviors. The dispatch span
+    /// carries a <c>brandup.cache</c> tag (hit/miss/bypass) for cached queries; an invalidation
+    /// failure is logged, never surfaced to the command's caller.
     /// </summary>
-    public class QueryCacheBehavior(IQueryCache queryCache) : IDomainBehavior
+    public sealed class QueryCacheBehavior(IQueryCache queryCache, ILogger<QueryCacheBehavior>? logger = null) : IDomainBehavior
     {
         readonly IQueryCache queryCache = queryCache ?? throw new ArgumentNullException(nameof(queryCache));
 
@@ -23,14 +27,22 @@ namespace BrandUp.Caching
                 // A query inside a command runs on the command's ambient session and may observe
                 // uncommitted state: neither serve nor store the cache for it.
                 if (context.IsInsideCommand)
+                {
+                    TagDispatchSpan("bypass");
                     return await next().ConfigureAwait(false);
+                }
 
-                var cached = await queryCache.GetAsync(cachedQuery.CacheKey, cancellationToken).ConfigureAwait(false);
+                var cached = await queryCache.GetAsync(cachedQuery.CacheKey, context.ResultType, cancellationToken).ConfigureAwait(false);
 
                 // A wrong-shaped entry (cache-key collision between different query shapes) is
                 // treated as a miss instead of poisoning the dispatch with a wrong-typed result.
                 if (cached != null && context.ResultType.IsInstanceOfType(cached))
+                {
+                    TagDispatchSpan("hit");
                     return cached;
+                }
+
+                TagDispatchSpan("miss");
 
                 var result = await next().ConfigureAwait(false);
 
@@ -48,7 +60,9 @@ namespace BrandUp.Caching
 
                 if (result is { IsSuccess: true })
                 {
-                    var cacheKeys = invalidating.InvalidateCacheKeys;
+                    // Snapshot: the keys are removed after the handler returned, possibly at the
+                    // completion of an enclosing command.
+                    var cacheKeys = invalidating.InvalidateCacheKeys.ToArray();
 
                     // Deferred to the completion of the outermost command - after the transaction
                     // commit, whatever position this behavior has in the pipeline - and discarded
@@ -56,24 +70,43 @@ namespace BrandUp.Caching
                     // the caller's behalf.
                     var dispatchScope = CommandDispatchScope.Current;
                     if (dispatchScope != null)
-                    {
-                        dispatchScope.OnCompleted(async () =>
-                        {
-                            foreach (var cacheKey in cacheKeys)
-                                await queryCache.RemoveAsync(cacheKey, CancellationToken.None).ConfigureAwait(false);
-                        });
-                    }
+                        dispatchScope.OnCompleted(() => RemoveKeysAsync(cacheKeys));
                     else
-                    {
-                        foreach (var cacheKey in cacheKeys)
-                            await queryCache.RemoveAsync(cacheKey, CancellationToken.None).ConfigureAwait(false);
-                    }
+                        await RemoveKeysAsync(cacheKeys).ConfigureAwait(false);
                 }
 
                 return result;
             }
 
             return await next().ConfigureAwait(false);
+        }
+
+        static void TagDispatchSpan(string outcome)
+        {
+            // The dispatch span exists only when a listener is attached to BrandUp.Domain;
+            // without one Activity.Current is the host's ambient span (e.g. the HTTP request
+            // activity) - tagging that would pollute foreign telemetry with a value that several
+            // dispatches of one request would overwrite.
+            if (Activity.Current is { } activity && activity.Source.Name == DomainDiagnostics.ActivitySourceName)
+                activity.SetTag("brandup.cache", outcome);
+        }
+
+        async ValueTask RemoveKeysAsync(string[] cacheKeys)
+        {
+            // The command already succeeded (and committed): an invalidation failure is an
+            // infrastructure problem to log, not a reason to surface the completed command as an
+            // error - the same rule deferred event handlers follow.
+            foreach (var cacheKey in cacheKeys)
+            {
+                try
+                {
+                    await queryCache.RemoveAsync(cacheKey, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    logger?.LogError(exception, "Cache invalidation of key \"{CacheKey}\" failed.", cacheKey);
+                }
+            }
         }
     }
 }
