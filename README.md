@@ -11,7 +11,7 @@ Base framework for .NET development: a universal `Result` structure and lightwei
 * **Observability** — OpenTelemetry-compatible spans and metrics out of the box.
 * **Error catalog** — cataloged error descriptors with stable codes, localized at the transport edge.
 * **Testing** — `BrandUp.Core.Testing`/`.xUnit`: one-line domain test host, dispatch asserts, fakes.
-* **BrandUp.Core.AspNetCore** — maps `Result` to HTTP responses and `ProblemDetails`.
+* **BrandUp.Core.AspNetCore** — maps `Result` to RFC 9457 `ProblemDetails` responses (with `type`, `instance` and a `traceId` extension) and ships a `ProblemDetailsFactory` that gives MVC model validation and `Problem(...)`/`ValidationProblem(...)` the same uniform `errors` list.
 * **BrandUp.Core.FluentValidation** — runs FluentValidation validators inside the domain validation pipeline.
 * **BrandUp.Core.Outbox.MongoDB** — MongoDB transactional outbox with a background delivery processor.
 
@@ -477,7 +477,15 @@ return signUpResult.ToActionResult();
 ProblemDetails problem = result.ToProblemDetails();
 ```
 
-Failed results become `ProblemDetails` with an `errors` extension listing code/message pairs; validation errors also carry their member names. Every mapping method also has an overload taking `HttpContext` that resolves the registered `IErrorLocalizer` from the request services — endpoints don't need to inject the localizer themselves.
+Failed results become RFC 9457 `ProblemDetails` served as `application/problem+json`: the mapped status, a `type` URI pointing at the RFC 9110 status definition, a `traceId` extension for correlating with logs and an `errors` extension listing uniform `ProblemError` items (`code`, `message` and, for validation errors with member names, `members`). Every mapping method also has an overload taking `HttpContext` that resolves the registered `IErrorLocalizer` from the request services and adds the request-bound defaults (`instance`, connection trace id) — endpoints don't need to inject the localizer themselves.
+
+To make the rest of the API speak the same format, register the package's `ProblemDetailsFactory`:
+
+```csharp
+services.AddDomainProblemDetails();
+```
+
+With it, `[ApiController]` model validation, `Problem(...)` and `ValidationProblem(...)` produce the same shape as the `Result` mappings — validation problems carry the uniform `errors` list (model-state keys become `members`) instead of the framework's per-member dictionary, and every problem response gets the `type`, `instance` and `traceId` defaults. One contract for the whole API, whether the error came from a domain result, model binding or a handwritten `Problem(...)`.
 
 The mapping cannot know where an identifier came from, so the `NotFound` kind is reserved by convention for the operation's primary subject — the entity the request addresses directly (over HTTP, typically by the URL). A missing entity that is only *referenced* from the request payload is a `Validation` error with a descriptive code (`channel-not-found`): at the transport level the request is wrong, not the addressed resource absent, and the response must be 400, not 404.
 
@@ -528,7 +536,7 @@ The catalog validates code uniqueness at registration and feeds documentation: `
 
 Localization happens at the transport layer, not at error creation: the domain carries the code, the invariant message and the format arguments (`IError.Arguments`), and the edge resolves a localized template per request culture. Cached results, stored outbox events and logs stay culture-free.
 
-`AddErrorLocalization`, `MapErrorCatalog` and the `Result` mapping overloads live in the `BrandUp.Core.AspNetCore` package; the catalog, descriptors and `IErrorLocalizer` are core.
+`MapErrorCatalog` and the `Result` mapping overloads live in the `BrandUp.Core.AspNetCore` package; the catalog, descriptors, `IErrorLocalizer` and its resx-backed `AddErrorLocalization` are core — localization does not depend on ASP.NET Core.
 
 ```csharp
 // resx files keyed by error code: ErrorMessages.ru.resx -> "order-not-found" = "Заказ {0} не найден."

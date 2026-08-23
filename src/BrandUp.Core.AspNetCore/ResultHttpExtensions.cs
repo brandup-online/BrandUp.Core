@@ -19,7 +19,8 @@ namespace BrandUp
     {
         /// <summary>
         /// Builds a <see cref="ProblemDetails"/> from a failed result: the mapped status, a title
-        /// from the error kind and an <c>errors</c> extension listing code/message pairs
+        /// from the error kind, RFC 9457 defaults (a <c>type</c> URI and a <c>traceId</c>
+        /// extension) and an <c>errors</c> extension listing <see cref="ProblemError"/> items
         /// (validation errors also carry their member names).
         /// </summary>
         /// <param name="result">Failed result.</param>
@@ -45,12 +46,18 @@ namespace BrandUp
                 .Select(error =>
                 {
                     var message = error.LocalizeOrInvariant(errorLocalizer, culture);
+                    // Blank names are dropped, as AddToModelState drops them: a member the
+                    // client cannot address is noise in the response, and a list of empty
+                    // strings reads as a member named "".
+                    var members = error is ValidationError validationError
+                        ? validationError.MemberNames.Where(memberName => !string.IsNullOrEmpty(memberName)).ToArray()
+                        : [];
 
-                    return error is ValidationError validationError
-                        ? (object)new { code = error.Code, message, members = validationError.MemberNames }
-                        : new { code = error.Code, message };
+                    return new ProblemError(error.Code, message, members.Length > 0 ? members : null);
                 })
                 .ToArray();
+
+            ProblemDetailsDefaults.Apply(problemDetails, httpContext: null);
 
             return problemDetails;
         }
@@ -98,8 +105,7 @@ namespace BrandUp
             if (result.IsSuccess)
                 return new NoContentResult();
 
-            var problemDetails = result.ToProblemDetails(errorLocalizer, culture);
-            return new ObjectResult(problemDetails) { StatusCode = problemDetails.Status };
+            return CreateProblemResult(result.ToProblemDetails(errorLocalizer, culture));
         }
 
         /// <summary>
@@ -117,8 +123,7 @@ namespace BrandUp
             if (result.IsSuccess)
                 return new OkObjectResult(result.Data);
 
-            var problemDetails = result.ToProblemDetails(errorLocalizer, culture);
-            return new ObjectResult(problemDetails) { StatusCode = problemDetails.Status };
+            return CreateProblemResult(result.ToProblemDetails(errorLocalizer, culture));
         }
 
         /// <summary>
@@ -133,7 +138,10 @@ namespace BrandUp
         {
             ArgumentNullException.ThrowIfNull(httpContext);
 
-            return result.ToProblemDetails(ResolveLocalizer(httpContext));
+            var problemDetails = result.ToProblemDetails(ResolveLocalizer(httpContext));
+            ProblemDetailsDefaults.Apply(problemDetails, httpContext);
+
+            return problemDetails;
         }
 
         /// <summary>
@@ -144,9 +152,10 @@ namespace BrandUp
         /// <param name="httpContext">Current HTTP context.</param>
         public static IResult ToHttpResult(this Result result, HttpContext httpContext)
         {
+            ArgumentNullException.ThrowIfNull(result);
             ArgumentNullException.ThrowIfNull(httpContext);
 
-            return result.ToHttpResult(ResolveLocalizer(httpContext));
+            return result.IsSuccess ? Results.NoContent() : Results.Problem(result.ToProblemDetails(httpContext));
         }
 
         /// <summary>
@@ -158,9 +167,10 @@ namespace BrandUp
         /// <param name="httpContext">Current HTTP context.</param>
         public static IResult ToHttpResult<TData>(this Result<TData> result, HttpContext httpContext)
         {
+            ArgumentNullException.ThrowIfNull(result);
             ArgumentNullException.ThrowIfNull(httpContext);
 
-            return result.ToHttpResult(ResolveLocalizer(httpContext));
+            return result.IsSuccess ? Results.Ok(result.Data) : Results.Problem(((Result)result).ToProblemDetails(httpContext));
         }
 
         /// <summary>
@@ -171,9 +181,13 @@ namespace BrandUp
         /// <param name="httpContext">Current HTTP context.</param>
         public static ActionResult ToActionResult(this Result result, HttpContext httpContext)
         {
+            ArgumentNullException.ThrowIfNull(result);
             ArgumentNullException.ThrowIfNull(httpContext);
 
-            return result.ToActionResult(ResolveLocalizer(httpContext));
+            if (result.IsSuccess)
+                return new NoContentResult();
+
+            return CreateProblemResult(result.ToProblemDetails(httpContext));
         }
 
         /// <summary>
@@ -185,9 +199,13 @@ namespace BrandUp
         /// <param name="httpContext">Current HTTP context.</param>
         public static ActionResult<TData> ToActionResult<TData>(this Result<TData> result, HttpContext httpContext)
         {
+            ArgumentNullException.ThrowIfNull(result);
             ArgumentNullException.ThrowIfNull(httpContext);
 
-            return result.ToActionResult(ResolveLocalizer(httpContext));
+            if (result.IsSuccess)
+                return new OkObjectResult(result.Data);
+
+            return CreateProblemResult(((Result)result).ToProblemDetails(httpContext));
         }
 
         /// <summary>
@@ -206,10 +224,23 @@ namespace BrandUp
             result.AddToModelState(modelState, ResolveLocalizer(httpContext));
         }
 
-        // The one place that knows how the HttpContext overloads obtain the localizer.
+        // The one place that knows how the HttpContext overloads obtain the localizer. The
+        // localizer is optional, and so is the container: a context built outside the request
+        // pipeline has no RequestServices, and reporting an error must not itself throw.
         static IErrorLocalizer? ResolveLocalizer(HttpContext httpContext)
         {
-            return httpContext.RequestServices.GetService<IErrorLocalizer>();
+            return httpContext.RequestServices?.GetService<IErrorLocalizer>();
+        }
+
+        // One construction of the MVC problem response: the mapped status and the
+        // application/problem+json content type.
+        static ObjectResult CreateProblemResult(ProblemDetails problemDetails)
+        {
+            return new ObjectResult(problemDetails)
+            {
+                StatusCode = problemDetails.Status,
+                ContentTypes = { ProblemDetailsDefaults.ProblemContentType }
+            };
         }
 
         /// <summary>

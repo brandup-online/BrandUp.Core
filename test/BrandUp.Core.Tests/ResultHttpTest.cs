@@ -5,6 +5,7 @@ using System.Linq;
 using BrandUp.Validation;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Xunit;
 
@@ -30,8 +31,107 @@ namespace BrandUp
             var problemDetails = result.ToProblemDetails();
 
             Assert.Equal(400, problemDetails.Status);
-            var errors = Assert.IsType<object[]>(problemDetails.Extensions["errors"]);
-            Assert.Single(errors);
+            var errors = Assert.IsType<ProblemError[]>(problemDetails.Extensions["errors"]);
+            var error = Assert.Single(errors);
+            Assert.Equal(string.Empty, error.Code);
+            Assert.Equal("Phone is required.", error.Message);
+            Assert.Equal("Phone", Assert.Single(error.Members!));
+        }
+
+        [Fact]
+        public void ToProblemDetails_UniformErrorShape_MembersOnlyForValidation()
+        {
+            var result = Result.Error(
+            [
+                new Error("channel-not-found", "Channel not found.", ErrorKind.NotFound),
+                new ValidationError("Start must precede end.", [])
+            ]);
+
+            var errors = Assert.IsType<ProblemError[]>(result.ToProblemDetails().Extensions["errors"]);
+
+            Assert.Equal(("channel-not-found", "Channel not found."), (errors[0].Code, errors[0].Message));
+            Assert.Null(errors[1].Members); // member-less validation error carries no members list
+        }
+
+        [Fact]
+        public void ToProblemDetails_BlankMemberNamesAreDropped()
+        {
+            var result = Result.Error([new ValidationError("Start must precede end.", ["", "End"])]);
+
+            var error = Assert.Single(Assert.IsType<ProblemError[]>(result.ToProblemDetails().Extensions["errors"]));
+
+            // A member the client cannot address is noise: only the named one survives.
+            Assert.Equal("End", Assert.Single(error.Members!));
+        }
+
+        [Fact]
+        public void ToProblemDetails_OnlyBlankMemberNamesCarryNoMembers()
+        {
+            var result = Result.Error([new ValidationError("Start must precede end.", ["", ""])]);
+
+            var error = Assert.Single(Assert.IsType<ProblemError[]>(result.ToProblemDetails().Extensions["errors"]));
+
+            Assert.Null(error.Members);
+        }
+
+        [Fact]
+        public void ToProblemDetails_AppliesRfc9457Defaults()
+        {
+            var problemDetails = Result.Error("code", "message", ErrorKind.NotFound).ToProblemDetails();
+
+            Assert.Equal("https://tools.ietf.org/html/rfc9110#section-15.5.5", problemDetails.Type);
+        }
+
+        [Fact]
+        public void ToProblemDetails_TraceIdComesFromTheCurrentActivity()
+        {
+            using var activity = new System.Diagnostics.Activity("test").Start();
+
+            var problemDetails = Result.Error("code", "message").ToProblemDetails();
+
+            Assert.Equal(activity.Id, problemDetails.Extensions["traceId"]);
+        }
+
+        [Fact]
+        public void ToProblemDetails_ExplicitValuesSurviveTheDefaults()
+        {
+            var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { TraceIdentifier = "trace-1" };
+            httpContext.Request.Path = "/v1/channel";
+
+            var problemDetails = Result.Error("code", "message", ErrorKind.NotFound).ToProblemDetails(httpContext);
+            problemDetails.Type = "https://errors.example/not-found";
+            problemDetails.Title = "Custom title.";
+            problemDetails.Instance = "urn:custom";
+
+            // Applying the defaults again must not overwrite what the caller decided.
+            Result.Error("code", "message", ErrorKind.NotFound).ToProblemDetails(httpContext);
+
+            Assert.Equal("https://errors.example/not-found", problemDetails.Type);
+            Assert.Equal("Custom title.", problemDetails.Title);
+            Assert.Equal("urn:custom", problemDetails.Instance);
+        }
+
+        [Fact]
+        public void ToProblemDetails_InstanceIncludesThePathBase()
+        {
+            var httpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+            httpContext.Request.PathBase = "/api";
+            httpContext.Request.Path = "/v1/channel";
+
+            var problemDetails = Result.Error("code", "message").ToProblemDetails(httpContext);
+
+            Assert.Equal("/api/v1/channel", problemDetails.Instance);
+        }
+
+        [Fact]
+        public void ToProblemDetails_WithoutRequestServices()
+        {
+            // A context built outside the request pipeline has no container; reporting an error
+            // must not throw because the optional localizer cannot be resolved.
+            var problemDetails = Result.Error("code", "message", ErrorKind.Conflict)
+                .ToProblemDetails(new Microsoft.AspNetCore.Http.DefaultHttpContext());
+
+            Assert.Equal(409, problemDetails.Status);
         }
 
         [Fact]
@@ -52,6 +152,7 @@ namespace BrandUp
             var objectResult = Assert.IsType<ObjectResult>(actionResult);
             Assert.Equal(404, objectResult.StatusCode);
             Assert.IsType<ProblemDetails>(objectResult.Value);
+            Assert.Equal("application/problem+json", Assert.Single(objectResult.ContentTypes));
         }
 
         [Fact]
@@ -145,6 +246,29 @@ namespace BrandUp
             Assert.Equal(500, ErrorKind.Internal.ToHttpStatusCode());
             Assert.Equal(400, ErrorKind.Validation.ToHttpStatusCode());
         }
+
+        [Fact]
+        public void DomainError_TakesTypedResultsWithoutACast()
+        {
+            var controller = new TestController { ControllerContext = new() { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() } };
+
+            // A typed result upcasts to Result here: the point of the helper.
+            IActionResult actionResult = controller.DomainError(Result.Error<int>("code", "message", ErrorKind.Conflict));
+
+            var objectResult = Assert.IsType<ObjectResult>(actionResult);
+            Assert.Equal(409, objectResult.StatusCode);
+            Assert.Equal("application/problem+json", Assert.Single(objectResult.ContentTypes));
+        }
+
+        [Fact]
+        public void DomainError_SuccessThrows()
+        {
+            var controller = new TestController { ControllerContext = new() { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = new ServiceCollection().BuildServiceProvider() } } };
+
+            Assert.Throws<InvalidOperationException>(() => controller.DomainError(Result.Success()));
+        }
+
+        class TestController : ControllerBase { }
 
         [Fact]
         public void ToHttpResult_MapsBothBranches()

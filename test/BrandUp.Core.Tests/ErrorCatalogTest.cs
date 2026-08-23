@@ -72,14 +72,14 @@ namespace BrandUp
             var result = Result.Error(ExampleErrors.OrderNotFound, 42);
 
             var russian = result.ToProblemDetails(localizer, CultureInfo.GetCultureInfo("ru"));
-            var russianError = Assert.Single(Assert.IsType<object[]>(russian.Extensions["errors"]));
-            Assert.Contains("Заказ 42 не найден.", russianError.ToString());
+            var russianError = Assert.Single(Assert.IsType<ProblemError[]>(russian.Extensions["errors"]));
+            Assert.Equal("Заказ 42 не найден.", russianError.Message);
             Assert.Equal(404, russian.Status);
 
             // No English resource: the invariant developer message is served.
             var english = result.ToProblemDetails(localizer, CultureInfo.GetCultureInfo("en"));
-            var englishError = Assert.Single(Assert.IsType<object[]>(english.Extensions["errors"]));
-            Assert.Contains("Order 42 not found.", englishError.ToString());
+            var englishError = Assert.Single(Assert.IsType<ProblemError[]>(english.Extensions["errors"]));
+            Assert.Equal("Order 42 not found.", englishError.Message);
         }
 
         [Fact]
@@ -167,7 +167,7 @@ namespace BrandUp
         [Fact]
         public void StringLocalizer_ParentChainWithoutNeutralFallback()
         {
-            var localizer = new StringLocalizerErrorLocalizer(new FakeStringLocalizer(new Dictionary<string, Dictionary<string, string>>
+            var localizer = new StringErrorLocalizer(new FakeStringLocalizer(new Dictionary<string, Dictionary<string, string>>
             {
                 // neutral resources are the untranslated default - must NOT count as ru
                 [""] = new() { ["order-not-found"] = "Order {0} not found.", ["order-already-paid"] = "Order {0} is already paid." },
@@ -185,7 +185,7 @@ namespace BrandUp
         [Fact]
         public void StringLocalizer_MalformedTranslation_FallsBackInsteadOfThrowing()
         {
-            var localizer = new StringLocalizerErrorLocalizer(new FakeStringLocalizer(new Dictionary<string, Dictionary<string, string>>
+            var localizer = new StringErrorLocalizer(new FakeStringLocalizer(new Dictionary<string, Dictionary<string, string>>
             {
                 ["ru"] = new() { ["order-not-found"] = "Заказ {5} не найден." }
             }));
@@ -194,14 +194,14 @@ namespace BrandUp
             Assert.Null(localizer.Localize(ExampleErrors.OrderNotFound.CreateError(42), CultureInfo.GetCultureInfo("ru")));
 
             var problemDetails = Result.Error(ExampleErrors.OrderNotFound, 42).ToProblemDetails(localizer, CultureInfo.GetCultureInfo("ru"));
-            Assert.Contains("Order 42 not found.", Assert.Single(Assert.IsType<object[]>(problemDetails.Extensions["errors"])).ToString());
+            Assert.Equal("Order 42 not found.", Assert.Single(Assert.IsType<ProblemError[]>(problemDetails.Extensions["errors"])).Message);
         }
 
         [Fact]
         public void AssertAllLocalized_CatchesMissingAndBrokenTranslations()
         {
             var catalog = new ErrorCatalog().AddFrom(typeof(ExampleErrors));
-            var localizer = new StringLocalizerErrorLocalizer(new FakeStringLocalizer(new Dictionary<string, Dictionary<string, string>>
+            var localizer = new StringErrorLocalizer(new FakeStringLocalizer(new Dictionary<string, Dictionary<string, string>>
             {
                 [""] = new() { ["order-not-found"] = "Order {0} not found.", ["order-already-paid"] = "Order {0} is already paid." },
                 ["ru"] = new() { ["order-not-found"] = "Заказ {5} не найден." } // broken; already-paid missing

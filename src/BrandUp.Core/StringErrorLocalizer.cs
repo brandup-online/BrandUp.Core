@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Resources;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Localization;
 
 namespace BrandUp
@@ -18,7 +16,7 @@ namespace BrandUp
     /// also reports <see langword="null"/> instead of failing the response: translations are
     /// data, not code. Per-culture template sets are cached for the lifetime of the instance.
     /// </summary>
-    public sealed class StringLocalizerErrorLocalizer(IStringLocalizer localizer) : IErrorLocalizer
+    public sealed class StringErrorLocalizer(IStringLocalizer localizer) : IErrorLocalizer
     {
         // Culture names come from the request (Accept-Language drives CurrentUICulture), and
         // .NET constructs a CultureInfo for any well-formed BCP-47 tag - without a cap a scanner
@@ -97,47 +95,6 @@ namespace BrandUp
             {
                 CultureInfo.CurrentUICulture = previousCulture;
             }
-        }
-    }
-
-    /// <summary>
-    /// Registration extensions for error localization.
-    /// </summary>
-    public static class ErrorLocalizationExtensions
-    {
-        /// <summary>
-        /// Registers <see cref="StringLocalizerErrorLocalizer"/> as the <see cref="IErrorLocalizer"/>
-        /// (with <c>AddLocalization</c>): localized message templates live in the .resx files of
-        /// <typeparamref name="TResource"/>, keyed by error code.
-        /// </summary>
-        /// <typeparam name="TResource">Resource marker type the .resx files are attached to.</typeparam>
-        /// <param name="services">Service collection.</param>
-        /// <returns>The same service collection, for chaining.</returns>
-        public static IServiceCollection AddErrorLocalization<TResource>(this IServiceCollection services)
-        {
-            ArgumentNullException.ThrowIfNull(services);
-
-            services.AddLocalization();
-            services.TryAddSingleton<IErrorLocalizer>(provider => new StringLocalizerErrorLocalizer(provider.GetRequiredService<IStringLocalizer<TResource>>()));
-
-            return services;
-        }
-
-        /// <summary>
-        /// Registers <see cref="StringLocalizerErrorLocalizer"/> as the <see cref="IErrorLocalizer"/>
-        /// on the domain builder, keeping the configuration chain (see
-        /// <see cref="AddErrorLocalization{TResource}(IServiceCollection)"/>).
-        /// </summary>
-        /// <typeparam name="TResource">Resource marker type the .resx files are attached to.</typeparam>
-        /// <param name="builder">Domain builder.</param>
-        /// <returns>The same builder, for chaining.</returns>
-        public static IDomainBuilder AddErrorLocalization<TResource>(this IDomainBuilder builder)
-        {
-            ArgumentNullException.ThrowIfNull(builder);
-
-            builder.Services.AddErrorLocalization<TResource>();
-
-            return builder;
         }
     }
 }
