@@ -1,43 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<Authors>Dmitry Kovyazin</Authors>
-		<Company>BrandUp.online</Company>
 		<Product>BrandUp.Core.Outbox.MongoDB</Product>
 		<Description>MongoDB transactional outbox for BrandUp.Core domain events: a store that persists deferred events inside the command's transaction and a background processor delivering them after commit with retries.</Description>
 		<PackageTags>cqrs;events;outbox;mongodb;brandup</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-		<RepositoryUrl>https://github.com/brandup-online/BrandUp.Core</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<PackageProjectUrl>https://github.com/brandup-online/BrandUp.Core</PackageProjectUrl>
-		<PackageIcon>icon.png</PackageIcon>
 		<RootNamespace>BrandUp.Events.MongoDB</RootNamespace>
-		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="..\..\icon.png">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-		<None Include="..\..\README.md">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
-		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
-		<PackageReference Include="MongoDB.Driver" Version="3.11.1" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+		<PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+		<PackageReference Include="MongoDB.Driver" />
 	</ItemGroup>
 
 	<ItemGroup>

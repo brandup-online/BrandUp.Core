@@ -1,41 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
-		<ImplicitUsings>enable</ImplicitUsings>
-		<Nullable>enable</Nullable>
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-		<Authors>Dmitry Kovyazin</Authors>
-		<Company>BrandUp.online</Company>
 		<Product>BrandUp.Core.Testing.xUnit</Product>
 		<Description>xUnit adapter for BrandUp.Core.Testing: reports domain assertion failures as native xUnit assertion failures with trimmed stack traces.</Description>
 		<PackageTags>cqrs;result;testing;xunit;brandup</PackageTags>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-		<RepositoryUrl>https://github.com/brandup-online/BrandUp.Core</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<PackageProjectUrl>https://github.com/brandup-online/BrandUp.Core</PackageProjectUrl>
-		<PackageIcon>icon.png</PackageIcon>
 		<RootNamespace>BrandUp.Testing.Xunit</RootNamespace>
-		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<None Include="..\..\icon.png">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-		<None Include="..\..\README.md">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="xunit.v3.assert" Version="4.0.0" />
+		<PackageReference Include="xunit.v3.assert" />
 	</ItemGroup>
 
 	<ItemGroup>

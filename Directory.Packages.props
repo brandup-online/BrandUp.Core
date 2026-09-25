@@ -1,0 +1,30 @@
+<Project>
+
+	<PropertyGroup>
+		<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Microsoft.Extensions -->
+		<PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.12" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+		<PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
+		<PackageVersion Include="Microsoft.Extensions.Localization" Version="10.0.12" />
+		<PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+		<PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.12" />
+
+		<!-- Third-party -->
+		<PackageVersion Include="FluentValidation" Version="12.1.1" />
+		<PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
+
+		<!-- Testing: xunit.v3.assert is also a dependency of the BrandUp.Core.Testing.xUnit package -->
+		<PackageVersion Include="EphemeralMongo" Version="3.2.0" />
+		<PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2" />
+		<PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
+		<PackageVersion Include="xunit.v3" Version="4.0.1" />
+		<PackageVersion Include="xunit.v3.assert" Version="4.0.1" />
+	</ItemGroup>
+
+</Project>

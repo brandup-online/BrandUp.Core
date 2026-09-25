@@ -1,0 +1,33 @@
+<Project>
+
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+
+	<!-- Common to every library project under src -->
+	<PropertyGroup>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+	</PropertyGroup>
+
+	<!-- NuGet package metadata shared by every package; Product, Description and PackageTags stay in each .csproj -->
+	<PropertyGroup>
+		<Authors>Dmitry Kovyazin</Authors>
+		<Company>BrandUp.online</Company>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<RepositoryUrl>https://github.com/brandup-online/BrandUp.Core</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageProjectUrl>https://github.com/brandup-online/BrandUp.Core</PackageProjectUrl>
+		<PackageIcon>icon.png</PackageIcon>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="$(MSBuildThisFileDirectory)..\icon.png" Pack="True" PackagePath="\" Visible="false" />
+		<None Include="$(MSBuildThisFileDirectory)..\README.md" Pack="True" PackagePath="\" Visible="false" />
+	</ItemGroup>
+
+</Project>

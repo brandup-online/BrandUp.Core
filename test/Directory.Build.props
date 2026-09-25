@@ -1,0 +1,12 @@
+<Project>
+
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)..'))" />
+
+	<!-- Common to every test project: Microsoft.Testing.Platform executables, never packed -->
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<IsPackable>false</IsPackable>
+		<RootNamespace>BrandUp</RootNamespace>
+	</PropertyGroup>
+
+</Project>
