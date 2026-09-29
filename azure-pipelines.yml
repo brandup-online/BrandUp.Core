@@ -132,13 +132,16 @@ stages:
               packageType: 'sdk'
               version: '10.x'
 
+          # Run from the artifact folder: NuGet expands no wildcard in a path that mixes \ and /, as the Windows
+          # workspace path joined with /net does.
           - task: DotNetCoreCLI@2
             displayName: 'publish nuget'
             inputs:
               command: custom
               custom: nuget
+              workingDirectory: '$(Pipeline.Workspace)/net'
               arguments: >
-                push "$(Pipeline.Workspace)/net/*.nupkg"
+                push *.nupkg
                 -s $(nuget-api-url)
                 -k $(nuget-api-key)
 
