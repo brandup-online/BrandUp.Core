@@ -121,6 +121,9 @@ stages:
     displayName: Production
     pool:
       name: Test
+    # The agent is persistent, and artifacts would be downloaded next to those of earlier runs.
+    workspace:
+      clean: all
     environment: $(envName)
     strategy:
       runOnce:
